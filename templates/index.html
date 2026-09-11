@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;color:#00ffff;font-family:'Courier New',Courier,monospace;height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+::selection{background:#00ffff;color:#000;}
+
+/* LOGIN */
+#login{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:20px;}
+.ghost-title{font-size:3rem;font-weight:700;letter-spacing:8px;color:#00ffff;text-shadow:0 0 20px #00ffff,0 0 40px #00ffff44;}
+.ghost-sub{font-size:0.75rem;letter-spacing:4px;color:#006666;text-transform:uppercase;}
+.terminal-input{background:#000;border:1px solid #00ffff44;border-bottom:2px solid #00ffff;padding:10px 16px;color:#00ffff;font-family:'Courier New',monospace;font-size:1rem;outline:none;width:280px;letter-spacing:2px;}
+.terminal-input::placeholder{color:#004444;}
+.terminal-input:focus{border-bottom-color:#00ffff;box-shadow:0 4px 12px #00ffff22;}
+.terminal-btn{background:#000;border:1px solid #00ffff;padding:10px 40px;color:#00ffff;font-family:'Courier New',monospace;font-size:0.9rem;letter-spacing:3px;cursor:pointer;text-transform:uppercase;transition:all 0.2s;}
+.terminal-btn:hover{background:#00ffff;color:#000;}
+#login-error{color:#ff4444;font-size:0.8rem;letter-spacing:1px;display:none;}
+.cursor-blink{display:inline-block;width:10px;height:1.1em;background:#00ffff;animation:blink 1s step-end infinite;vertical-align:middle;margin-left:2px;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+
+/* CHAT */
+#chat{display:none;flex-direction:column;height:100vh;}
+#topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid #00ffff22;background:#000;flex-shrink:0;}
+.topbar-left{display:flex;align-items:center;gap:12px;}
+.ghost-tag{font-size:1.1rem;font-weight:700;letter-spacing:4px;color:#00ffff;text-shadow:0 0 10px #00ffff66;}
+.online-dot{width:7px;height:7px;background:#00ffff;border-radius:50%;box-shadow:0 0 6px #00ffff;animation:pdot 2s ease-in-out infinite;}
+@keyframes pdot{0%,100%{opacity:1;}50%{opacity:0.3;}}
+.topbar-right{display:flex;gap:8px;align-items:center;}
+.tb-btn{background:#000;border:1px solid #00ffff33;padding:5px 12px;color:#006666;font-family:'Courier New',monospace;font-size:0.72rem;letter-spacing:1px;cursor:pointer;text-transform:uppercase;transition:all 0.2s;}
+.tb-btn:hover{border-color:#00ffff;color:#00ffff;}
+select.tb-btn{appearance:none;padding-right:8px;}
+
+#msgs{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;scroll-behavior:smooth;}
+#msgs::-webkit-scrollbar{width:3px;}
+#msgs::-webkit-scrollbar-thumb{background:#00ffff22;}
+
+.msg-block{display:flex;flex-direction:column;gap:4px;}
+.msg-prefix{font-size:0.72rem;letter-spacing:2px;color:#006666;}
+.msg-prefix.you{color:#00ffff99;}
+.msg-text{font-size:0.9rem;line-height:1.7;white-space:pre-wrap;word-wrap:break-word;color:#00ffff;}
+.msg-text.user-txt{color:#00ffff;}
+.msg-text.ghost-txt{color:#00cccc;}
+.msg-text.thinking-txt{color:#004444;font-style:italic;}
+.msg-time{font-size:0.65rem;color:#003333;}
+
+/* Code blocks */
+.code-block{margin:8px 0;border:1px solid #00ffff22;background:#050505;border-left:2px solid #00ffff;}
+.code-lang{font-size:0.65rem;letter-spacing:2px;color:#006666;padding:4px 10px;border-bottom:1px solid #00ffff11;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;}
+.code-copy{background:#000;border:1px solid #00ffff33;padding:2px 8px;color:#006666;font-family:'Courier New',monospace;font-size:0.65rem;cursor:pointer;letter-spacing:1px;transition:all 0.2s;}
+.code-copy:hover{border-color:#00ffff;color:#00ffff;}
+.code-content{padding:12px 14px;overflow-x:auto;font-size:0.82rem;line-height:1.6;color:#00cccc;}
+.code-content::-webkit-scrollbar{height:2px;}
+.code-content::-webkit-scrollbar-thumb{background:#00ffff22;}
+.kw{color:#00ffff;font-weight:bold;}.str{color:#00ff88;}.num{color:#ffaa00;}.cmt{color:#004444;font-style:italic;}.fn{color:#0088ff;}
+
+/* Images */
+.gen-img{max-width:100%;border:1px solid #00ffff22;margin-top:8px;display:block;}
+
+/* Input area */
+#input-area{padding:12px 20px;border-top:1px solid #00ffff22;background:#000;flex-shrink:0;display:flex;flex-direction:column;gap:8px;}
+#file-bar{display:none;align-items:center;gap:8px;font-size:0.75rem;color:#00ffff88;border:1px solid #00ffff22;padding:5px 10px;}
+#file-bar button{background:none;border:none;color:#ff4444;cursor:pointer;font-family:'Courier New',monospace;font-size:0.75rem;}
+.input-row{display:flex;gap:10px;align-items:flex-end;}
+#inp{flex:1;background:#000;border:none;border-bottom:1px solid #00ffff44;padding:10px 0;color:#00ffff;font-family:'Courier New',monospace;font-size:0.9rem;resize:none;outline:none;min-height:38px;max-height:120px;line-height:1.5;}
+#inp::placeholder{color:#003333;}
+#inp:focus{border-bottom-color:#00ffff;}
+#send-btn{background:#000;border:1px solid #00ffff;padding:8px 18px;color:#00ffff;font-family:'Courier New',monospace;font-size:0.8rem;letter-spacing:2px;cursor:pointer;text-transform:uppercase;flex-shrink:0;transition:all 0.2s;}
+#send-btn:hover{background:#00ffff;color:#000;}
+.toolbar{display:flex;gap:6px;}
+.tool-btn{background:#000;border:1px solid #00ffff22;padding:4px 10px;color:#004444;font-family:'Courier New',monospace;font-size:0.7rem;cursor:pointer;letter-spacing:1px;transition:all 0.2s;}
+.tool-btn:hover{border-color:#00ffff44;color:#006666;}
+#file-input{display:none;}
+.divider{text-align:center;font-size:0.65rem;letter-spacing:2px;color:#003333;margin:4px 0;}
+
+@media(max-width:600px){
+  .ghost-title{font-size:2rem;}
+  #msgs{padding:12px;}
+  #input-area{padding:10px 12px;}
+  #topbar{padding:8px 12px;}
+}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="ghost-title">GHOST<span class="cursor-blink"></span></div>
+  <div class="ghost-sub">Personal AI // Kevin Augusta</div>
+  <input type="password" id="pw" class="terminal-input" placeholder="password" autocomplete="off"/>
+  <button id="launch" class="terminal-btn">Access</button>
+  <div id="login-error">Access denied.</div>
+</div>
+
+<div id="chat">
+  <div id="topbar">
+    <div class="topbar-left">
+      <div class="ghost-tag">GHOST</div>
+      <div class="online-dot"></div>
+    </div>
+    <div class="topbar-right">
+      <select id="model-select" class="tb-btn" title="Model"></select>
+      <button class="tb-btn" onclick="window.location.href='/memory'">Memory</button>
+      <button class="tb-btn" onclick="exportChat()">Export</button>
+      <button class="tb-btn" onclick="clearChat()">Clear</button>
+      <button class="tb-btn" onclick="logout()">Logout</button>
+    </div>
+  </div>
+  <div id="msgs"></div>
+  <div id="input-area">
+    <div id="file-bar">
+      <span id="file-name">No file</span>
+      <button onclick="removeFile()">Remove</button>
+    </div>
+    <div class="input-row">
+      <textarea id="inp" placeholder="> type here..." rows="1"></textarea>
+      <button id="send-btn">Send</button>
+    </div>
+    <div class="toolbar">
+      <button class="tool-btn" onclick="document.getElementById('file-input').click()">Attach</button>
+      <button class="tool-btn" onclick="insertCode()">Code block</button>
+    </div>
+    <input type="file" id="file-input" accept=".lua,.py,.js,.html,.css,.txt,.json"/>
+  </div>
+</div>
+
+<script>
+var PASSWORD = "iloveubatcat";
+var pendingFile = null;
+var isSending = false;
+var chatHistory = [];
+
+document.getElementById("launch").addEventListener("click", tryLogin);
+document.getElementById("pw").addEventListener("keydown", function(e){ if(e.key==="Enter") tryLogin(); });
+
+function tryLogin(){
+  if(document.getElementById("pw").value === PASSWORD){
+    localStorage.setItem("ghost_auth","1");
+    showChat();
+  } else {
+    document.getElementById("login-error").style.display = "block";
+  }
+}
+
+function logout(){
+  localStorage.removeItem("ghost_auth");
+  document.getElementById("chat").style.display = "none";
+  document.getElementById("login").style.display = "flex";
+  document.getElementById("pw").value = "";
+  document.getElementById("login-error").style.display = "none";
+}
+
+function showChat(){
+  document.getElementById("login").style.display = "none";
+  document.getElementById("chat").style.display = "flex";
+  loadModels();
+  loadHistory();
+}
+
+if(localStorage.getItem("ghost_auth")==="1") showChat();
+
+document.getElementById("file-input").addEventListener("change", function(e){
+  var file = e.target.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    pendingFile = {name: file.name, content: ev.target.result};
+    document.getElementById("file-name").textContent = file.name;
+    document.getElementById("file-bar").style.display = "flex";
+  };
+  reader.readAsText(file);
+  e.target.value = "";
+});
+
+function removeFile(){ pendingFile = null; document.getElementById("file-bar").style.display = "none"; }
+
+function insertCode(){
+  var inp = document.getElementById("inp");
+  var pos = inp.selectionStart;
+  var val = inp.value;
+  var insert = "\n```\n\n```\n";
+  inp.value = val.slice(0,pos) + insert + val.slice(pos);
+  inp.focus();
+  inp.selectionStart = inp.selectionEnd = pos + insert.length - 5;
+}
+
+function playDone(){
+  try{
+    var actx = new(window.AudioContext||window.webkitAudioContext)();
+    var o = actx.createOscillator();
+    var g = actx.createGain();
+    o.connect(g); g.connect(actx.destination);
+    o.frequency.value = 660; o.type = "sine";
+    g.gain.setValueAtTime(0, actx.currentTime);
+    g.gain.linearRampToValueAtTime(0.08, actx.currentTime+0.01);
+    g.gain.linearRampToValueAtTime(0, actx.currentTime+0.22);
+    o.start(actx.currentTime); o.stop(actx.currentTime+0.25);
+  }catch(e){}
+}
+
+function highlight(code, lang){
+  var e = code.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  if(lang==="lua"||lang==="luau"){
+    e = e.replace(/(--[^\n]*)/g,'<span class="cmt">$1</span>');
+    e = e.replace(/\b(local|function|end|if|then|else|elseif|for|while|do|return|true|false|nil|not|and|or|in|repeat|until|break)\b/g,'<span class="kw">$1</span>');
+    e = e.replace(/\b(\d+\.?\d*)\b/g,'<span class="num">$1</span>');
+    e = e.replace(/\b([A-Za-z_][A-Za-z0-9_]*)(?=\s*\()/g,'<span class="fn">$1</span>');
+  } else if(lang==="python"||lang==="py"){
+    e = e.replace(/(#[^\n]*)/g,'<span class="cmt">$1</span>');
+    e = e.replace(/\b(def|class|import|from|return|if|elif|else|for|while|in|not|and|or|True|False|None|try|except|with|as|pass|break|continue|lambda|yield)\b/g,'<span class="kw">$1</span>');
+    e = e.replace(/\b(\d+\.?\d*)\b/g,'<span class="num">$1</span>');
+    e = e.replace(/\b([A-Za-z_][A-Za-z0-9_]*)(?=\s*\()/g,'<span class="fn">$1</span>');
+  } else if(lang==="js"||lang==="javascript"){
+    e = e.replace(/(\/\/[^\n]*)/g,'<span class="cmt">$1</span>');
+    e = e.replace(/\b(var|let|const|function|return|if|else|for|while|do|class|import|export|from|true|false|null|undefined|new|this|try|catch|async|await)\b/g,'<span class="kw">$1</span>');
+    e = e.replace(/\b(\d+\.?\d*)\b/g,'<span class="num">$1</span>');
+    e = e.replace(/\b([A-Za-z_][A-Za-z0-9_]*)(?=\s*\()/g,'<span class="fn">$1</span>');
+  }
+  return e;
+}
+
+function renderMarkdown(text){
+  var s = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  s = s.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
+  s = s.replace(/\*([^*]+)\*/g,"<em>$1</em>");
+  return s;
+}
+
+function renderContent(text){
+  var div = document.createElement("div");
+  text = text.replace(/\[IMAGE_URL:([^\]]+)\]/g, function(m,url){ return "|||IMG:"+url+"|||"; });
+  var parts = text.split(/(```[\s\S]*?```)/g);
+  parts.forEach(function(part){
+    if(part.startsWith("```")){
+      var lines = part.slice(3).split("\n");
+      var lang = lines[0].trim().toLowerCase();
+      var code = lines.slice(1).join("\n");
+      if(code.endsWith("```")) code = code.slice(0,-3);
+      code = code.trim();
+      var block = document.createElement("div");
+      block.className = "code-block";
+      var topbar = document.createElement("div");
+      topbar.className = "code-lang";
+      var langSpan = document.createElement("span");
+      langSpan.textContent = lang || "code";
+      topbar.appendChild(langSpan);
+      var btn = document.createElement("button");
+      btn.className = "code-copy"; btn.textContent = "copy";
+      (function(c,b){ b.onclick = function(){ navigator.clipboard.writeText(c).then(function(){ b.textContent="copied"; setTimeout(function(){ b.textContent="copy"; },2000); }).catch(function(){ b.textContent="error"; }); }; })(code, btn);
+      topbar.appendChild(btn);
+      block.appendChild(topbar);
+      var pre = document.createElement("div"); pre.className = "code-content"; pre.innerHTML = highlight(code, lang);
+      block.appendChild(pre); div.appendChild(block);
+    } else if(part.includes("|||IMG:")){
+      var imgParts = part.split("|||IMG:");
+      imgParts.forEach(function(ip, idx){
+        if(idx===0){ if(ip.trim()){ var t=document.createElement("div"); t.style.whiteSpace="pre-wrap"; t.innerHTML=renderMarkdown(ip); div.appendChild(t); } }
+        else {
+          var urlEnd = ip.indexOf("|||");
+          var imgUrl = urlEnd>-1 ? ip.slice(0,urlEnd) : ip;
+          var rest = urlEnd>-1 ? ip.slice(urlEnd+3) : "";
+          var img = document.createElement("img"); img.src=imgUrl; img.className="gen-img"; img.alt="image"; div.appendChild(img);
+          if(rest.trim()){ var t2=document.createElement("div"); t2.style.whiteSpace="pre-wrap"; t2.innerHTML=renderMarkdown(rest); div.appendChild(t2); }
+        }
+      });
+    } else {
+      if(part.trim()){ var t3=document.createElement("div"); t3.style.whiteSpace="pre-wrap"; t3.innerHTML=renderMarkdown(part); div.appendChild(t3); }
+    }
+  });
+  return div;
+}
+
+function now(){
+  return new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+}
+
+function addMsg(role, content, streaming){
+  var msgs = document.getElementById("msgs");
+  var block = document.createElement("div");
+  block.className = "msg-block";
+  var prefix = document.createElement("div");
+  prefix.className = "msg-prefix" + (role==="user" ? " you" : "");
+  prefix.textContent = role==="user" ? "> you // "+now() : "ghost // "+now();
+  var text = document.createElement("div");
+  text.className = "msg-text " + (role==="user" ? "user-txt" : streaming ? "thinking-txt" : "ghost-txt");
+  if(role==="user"){ text.textContent = content; }
+  else if(streaming){ text.textContent = content; }
+  else { text.appendChild(renderContent(content)); }
+  block.appendChild(prefix);
+  block.appendChild(text);
+  msgs.appendChild(block);
+  msgs.scrollTop = msgs.scrollHeight;
+  return text;
+}
+
+function addDivider(txt){
+  var msgs = document.getElementById("msgs");
+  var d = document.createElement("div");
+  d.className = "divider";
+  d.textContent = "-- " + txt + " --";
+  msgs.appendChild(d);
+}
+
+function loadHistory(){
+  var msgs = document.getElementById("msgs");
+  msgs.innerHTML = "";
+  fetch("/history").then(function(r){ return r.json(); }).then(function(d){
+    var history = d.history || [];
+    chatHistory = history.slice();
+    if(history.length===0){
+      addMsg("ghost","Ghost is online. What do you need.",false);
+      return;
+    }
+    addDivider("previous session");
+    history.slice(-20).forEach(function(msg){
+      addMsg(msg.role==="user"?"user":"ghost", msg.content, false);
+    });
+    addDivider("new session");
+    msgs.scrollTop = msgs.scrollHeight;
+  }).catch(function(){
+    addMsg("ghost","Ghost is online. What do you need.",false);
+  });
+}
+
+document.getElementById("send-btn").addEventListener("click", sendMsg);
+document.getElementById("inp").addEventListener("keydown", function(e){
+  if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); sendMsg(); }
+});
+document.getElementById("inp").addEventListener("input", function(){
+  this.style.height = "auto";
+  this.style.height = Math.min(this.scrollHeight, 120) + "px";
+});
+
+function removeEl(el){ try{ if(el&&el.parentNode) el.parentNode.removeChild(el); }catch(e){} }
+
+function sendMsg(){
+  if(isSending) return;
+  var inp = document.getElementById("inp");
+  var msg = inp.value.trim();
+  if(!msg && !pendingFile) return;
+  var displayMsg = msg || (pendingFile ? "Analyze: "+pendingFile.name : "");
+  inp.value = ""; inp.style.height = "auto";
+  isSending = true;
+
+  addMsg("user", displayMsg, false);
+
+  var msgs = document.getElementById("msgs");
+  var thinkBlock = document.createElement("div");
+  thinkBlock.className = "msg-block";
+  var thinkPrefix = document.createElement("div");
+  thinkPrefix.className = "msg-prefix";
+  thinkPrefix.textContent = "ghost // " + now();
+  var thinkText = document.createElement("div");
+  thinkText.className = "msg-text thinking-txt";
+  thinkText.textContent = "...";
+  thinkBlock.appendChild(thinkPrefix);
+  thinkBlock.appendChild(thinkText);
+  msgs.appendChild(thinkBlock);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  var sel = document.getElementById("model-select");
+  var payload = {message: displayMsg, model: sel ? sel.value : "", history: chatHistory};
+  if(pendingFile){ payload.file_content = pendingFile.content; payload.file_name = pendingFile.name; }
+  pendingFile = null;
+  document.getElementById("file-bar").style.display = "none";
+
+  var fullReply = "";
+  var streamText = null;
+  var thinkRemoved = false;
+
+  function removeThink(){ if(!thinkRemoved){ thinkRemoved=true; removeEl(thinkBlock); } }
+
+  function finalize(full){
+    removeThink();
+    if(streamText){
+      streamText.textContent = "";
+      streamText.className = "msg-text ghost-txt";
+      streamText.appendChild(renderContent(full));
+    } else {
+      addMsg("ghost", full||"No response.", false);
+    }
+    chatHistory.push({role:"user",content:displayMsg});
+    chatHistory.push({role:"assistant",content:full||""});
+    playDone();
+    isSending = false;
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function handleError(){
+    removeThink();
+    addMsg("ghost","Connection error.",false);
+    isSending = false;
+  }
+
+  fetch("/send",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
+  .then(function(r){
+    if(!r.ok){ handleError(); return; }
+    var reader = r.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = "";
+    function read(){
+      return reader.read().then(function(result){
+        if(result.done){ if(fullReply) finalize(fullReply); else handleError(); return; }
+        buffer += decoder.decode(result.value,{stream:true});
+        var lines = buffer.split("\n");
+        buffer = lines.pop();
+        lines.forEach(function(line){
+          if(!line.startsWith("data: ")) return;
+          var dataStr = line.slice(6).trim();
+          if(!dataStr) return;
+          try{
+            var data = JSON.parse(dataStr);
+            if(data.token){
+              removeThink();
+              if(!streamText){
+                var block = document.createElement("div");
+                block.className = "msg-block";
+                var px = document.createElement("div");
+                px.className = "msg-prefix";
+                px.textContent = "ghost // " + now();
+                streamText = document.createElement("div");
+                streamText.className = "msg-text ghost-txt";
+                block.appendChild(px);
+                block.appendChild(streamText);
+                msgs.appendChild(block);
+              }
+              fullReply += data.token;
+              streamText.textContent = fullReply;
+              msgs.scrollTop = msgs.scrollHeight;
+            }
+            if(data.done){ finalize(data.full||fullReply); }
+          }catch(e){}
+        });
+        return read();
+      }).catch(function(){ handleError(); });
+    }
+    return read();
+  })
+  .catch(function(){ handleError(); });
+}
+
+function clearChat(){
+  if(!confirm("Clear all chat history?")) return;
+  fetch("/clear",{method:"POST"}).then(function(){
+    chatHistory = [];
+    document.getElementById("msgs").innerHTML = "";
+    addMsg("ghost","Cleared.",false);
+  });
+}
+
+function loadModels(){
+  fetch("/models").then(function(r){ return r.json(); }).then(function(d){
+    var sel = document.getElementById("model-select");
+    sel.innerHTML = "";
+    (d.models||[]).forEach(function(m){
+      var o = document.createElement("option");
+      o.value = m.id; o.textContent = m.label||m.id;
+      sel.appendChild(o);
+    });
+  }).catch(function(){});
+}
+
+function exportChat(){
+  var lines = [];
+  document.querySelectorAll(".msg-block").forEach(function(block){
+    var prefix = block.querySelector(".msg-prefix");
+    var text = block.querySelector(".msg-text");
+    if(prefix && text && !text.classList.contains("thinking-txt")){
+      lines.push("[" + prefix.textContent + "]");
+      lines.push(text.innerText||text.textContent);
+      lines.push("");
+    }
+  });
+  if(lines.length===0){ alert("Nothing to export."); return; }
+  var blob = new Blob([lines.join("\n")],{type:"text/plain"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "ghost-chat.txt";
+  a.click();
+}
+</script>
+</body>
+</html>

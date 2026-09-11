@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost // Memory</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;color:#00ffff;font-family:'Courier New',Courier,monospace;min-height:100vh;padding:20px;}
+::selection{background:#00ffff;color:#000;}
+
+#topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:30px;padding-bottom:12px;border-bottom:1px solid #00ffff22;}
+.ghost-tag{font-size:1.1rem;font-weight:700;letter-spacing:4px;color:#00ffff;text-shadow:0 0 10px #00ffff66;}
+.ghost-sub{font-size:0.7rem;letter-spacing:3px;color:#006666;margin-top:2px;}
+.topbar-right{display:flex;gap:8px;}
+.tb-btn{background:#000;border:1px solid #00ffff33;padding:5px 12px;color:#006666;font-family:'Courier New',monospace;font-size:0.72rem;letter-spacing:1px;cursor:pointer;text-transform:uppercase;transition:all 0.2s;text-decoration:none;display:inline-block;}
+.tb-btn:hover{border-color:#00ffff;color:#00ffff;}
+.tb-btn.danger{border-color:#ff444433;color:#ff4444;}
+.tb-btn.danger:hover{border-color:#ff4444;background:#ff444422;}
+
+#status{font-size:0.72rem;letter-spacing:2px;color:#004444;margin-bottom:20px;min-height:18px;}
+#status.ok{color:#00ff88;}
+#status.err{color:#ff4444;}
+
+.section{margin-bottom:28px;border:1px solid #00ffff11;border-left:2px solid #00ffff33;padding:16px;}
+.section-title{font-size:0.7rem;letter-spacing:3px;color:#006666;text-transform:uppercase;margin-bottom:12px;border-bottom:1px solid #00ffff11;padding-bottom:6px;}
+.field-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
+.field-label{font-size:0.65rem;letter-spacing:2px;color:#004444;text-transform:uppercase;}
+.field-value{font-size:0.82rem;color:#00cccc;background:#050505;border:1px solid #00ffff11;padding:8px 10px;word-break:break-all;line-height:1.5;}
+.field-value.editable{border:1px solid #00ffff22;cursor:text;outline:none;min-height:32px;}
+.field-value.editable:focus{border-color:#00ffff66;color:#00ffff;}
+
+.raw-editor{width:100%;background:#050505;border:1px solid #00ffff22;border-left:2px solid #00ffff44;color:#00cccc;font-family:'Courier New',monospace;font-size:0.78rem;padding:12px;resize:vertical;outline:none;min-height:300px;line-height:1.6;}
+.raw-editor:focus{border-color:#00ffff66;color:#00ffff;}
+
+.btn-row{display:flex;gap:8px;margin-top:12px;}
+.action-btn{background:#000;border:1px solid #00ffff44;padding:8px 20px;color:#00ffff;font-family:'Courier New',monospace;font-size:0.78rem;letter-spacing:2px;cursor:pointer;text-transform:uppercase;transition:all 0.2s;}
+.action-btn:hover{background:#00ffff;color:#000;}
+.action-btn.secondary{border-color:#00ffff22;color:#006666;}
+.action-btn.secondary:hover{border-color:#00ffff44;color:#00cccc;background:#000;}
+
+.history-item{font-size:0.8rem;color:#00aaaa;padding:6px 0;border-bottom:1px solid #00ffff11;line-height:1.5;}
+.history-item:last-child{border-bottom:none;}
+
+.loading{color:#004444;font-size:0.8rem;letter-spacing:2px;animation:fade 1s ease-in-out infinite alternate;}
+@keyframes fade{from{opacity:0.3;}to{opacity:1;}}
+
+.tabs{display:flex;gap:0;margin-bottom:0;border-bottom:1px solid #00ffff22;}
+.tab{padding:8px 20px;font-size:0.72rem;letter-spacing:2px;color:#004444;cursor:pointer;text-transform:uppercase;border-bottom:2px solid transparent;transition:all 0.2s;}
+.tab.active{color:#00ffff;border-bottom-color:#00ffff;}
+.tab:hover{color:#00cccc;}
+.tab-content{display:none;padding:20px 0;}
+.tab-content.active{display:block;}
+
+@media(max-width:600px){
+  body{padding:12px;}
+  .tb-btn{font-size:0.65rem;padding:4px 8px;}
+}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div>
+    <div class="ghost-tag">GHOST // MEMORY</div>
+    <div class="ghost-sub">Kevin Augusta - JSONbin Dashboard</div>
+  </div>
+  <div class="topbar-right">
+    <a href="/" class="tb-btn">Back to Ghost</a>
+    <button class="tb-btn" onclick="loadMemory()">Refresh</button>
+    <button class="tb-btn danger" onclick="confirmReset()">Reset</button>
+  </div>
+</div>
+
+<div id="status" class="loading">Loading memory...</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('overview')">Overview</div>
+  <div class="tab" onclick="switchTab('history')">History</div>
+  <div class="tab" onclick="switchTab('raw')">Raw JSON</div>
+</div>
+
+<div id="tab-overview" class="tab-content active">
+  <div class="section">
+    <div class="section-title">Identity</div>
+    <div class="field-row"><div class="field-label">Name</div><div class="field-value" id="f-name">...</div></div>
+    <div class="field-row"><div class="field-label">Email</div><div class="field-value" id="f-email">...</div></div>
+    <div class="field-row"><div class="field-label">Home Email</div><div class="field-value" id="f-home-email">...</div></div>
+    <div class="field-row"><div class="field-label">Last Updated</div><div class="field-value" id="f-updated">...</div></div>
+    <div class="field-row"><div class="field-label">Notes</div><div class="field-value" id="f-notes" class="editable" contenteditable="true">...</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Projects</div>
+    <div id="f-projects" class="field-value">...</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">GoGuardian</div>
+    <div class="field-row"><div class="field-label">Blocked</div><div class="field-value" id="f-blocked">...</div></div>
+    <div class="field-row"><div class="field-label">Works</div><div class="field-value" id="f-works">...</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Preferences</div>
+    <div class="field-row"><div class="field-label">UI Library</div><div class="field-value" id="f-ui">...</div></div>
+    <div class="field-row"><div class="field-label">Executors</div><div class="field-value" id="f-executors">...</div></div>
+    <div class="field-row"><div class="field-label">Script Rules</div><div class="field-value" id="f-script-pref">...</div></div>
+  </div>
+</div>
+
+<div id="tab-history" class="tab-content">
+  <div class="section">
+    <div class="section-title">Conversation History</div>
+    <div id="f-history">...</div>
+    <div class="btn-row">
+      <button class="action-btn secondary" onclick="addHistoryEntry()">Add Entry</button>
+    </div>
+  </div>
+</div>
+
+<div id="tab-raw" class="tab-content">
+  <div class="section">
+    <div class="section-title">Raw JSON Editor</div>
+    <textarea class="raw-editor" id="raw-editor" spellcheck="false"></textarea>
+    <div class="btn-row">
+      <button class="action-btn" onclick="saveRaw()">Save to JSONbin</button>
+      <button class="action-btn secondary" onclick="formatRaw()">Format JSON</button>
+      <button class="action-btn secondary" onclick="loadMemory()">Discard Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var memoryData = null;
+
+function switchTab(name){
+  document.querySelectorAll(".tab").forEach(function(t,i){
+    t.classList.remove("active");
+  });
+  document.querySelectorAll(".tab-content").forEach(function(c){
+    c.classList.remove("active");
+  });
+  event.target.classList.add("active");
+  document.getElementById("tab-"+name).classList.add("active");
+}
+
+function setStatus(msg, type){
+  var el = document.getElementById("status");
+  el.textContent = msg;
+  el.className = type || "";
+}
+
+function loadMemory(){
+  setStatus("Loading...", "loading");
+  fetch("/memory/read").then(function(r){ return r.json(); }).then(function(data){
+    memoryData = data;
+    renderOverview(data);
+    document.getElementById("raw-editor").value = JSON.stringify(data, null, 2);
+    setStatus("Memory loaded.", "ok");
+    setTimeout(function(){ setStatus("",""); }, 3000);
+  }).catch(function(e){
+    setStatus("Failed to load memory: " + e, "err");
+  });
+}
+
+function renderOverview(d){
+  setText("f-name", d.user || "-");
+  setText("f-email", d.email || "-");
+  setText("f-home-email", d.home_email || "-");
+  setText("f-updated", d.last_updated || "-");
+  setText("f-notes", d.notes || "-");
+
+  // Projects
+  var proj = d.projects || {};
+  var projLines = [];
+  Object.keys(proj).forEach(function(k){
+    var p = proj[k];
+    var line = k.toUpperCase() + ": ";
+    if(p.status) line += p.status;
+    if(p.url) line += " | " + p.url;
+    if(p.urls) line += " | " + Object.values(p.urls).join(", ");
+    projLines.push(line);
+  });
+  setText("f-projects", projLines.join("\n") || "-");
+
+  // GoGuardian
+  var gg = d.goguardian || {};
+  setText("f-blocked", (gg.blocks||[]).join(", ") || "-");
+  setText("f-works", (gg.works||[]).join(", ") || "-");
+
+  // Prefs
+  var prefs = d.preferences || {};
+  setText("f-ui", prefs.ui_library || "-");
+  setText("f-executors", (prefs.executors||[]).join(", ") || "-");
+  setText("f-script-pref", prefs.script_preference || "-");
+
+  // History
+  var hist = d.conversation_history || [];
+  var histEl = document.getElementById("f-history");
+  histEl.innerHTML = "";
+  if(hist.length === 0){
+    histEl.textContent = "No history.";
+  } else {
+    hist.forEach(function(entry, i){
+      var div = document.createElement("div");
+      div.className = "history-item";
+      div.textContent = (i+1) + ". " + entry;
+      histEl.appendChild(div);
+    });
+  }
+}
+
+function setText(id, val){
+  var el = document.getElementById(id);
+  if(el) el.textContent = val;
+}
+
+function saveRaw(){
+  var raw = document.getElementById("raw-editor").value;
+  var parsed;
+  try{
+    parsed = JSON.parse(raw);
+  } catch(e){
+    setStatus("Invalid JSON: " + e, "err");
+    return;
+  }
+  setStatus("Saving...", "loading");
+  fetch("/memory/write",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(parsed)
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(d.success){
+      memoryData = parsed;
+      renderOverview(parsed);
+      setStatus("Saved.", "ok");
+      setTimeout(function(){ setStatus("",""); }, 3000);
+    } else {
+      setStatus("Save failed: " + (d.error||"unknown"), "err");
+    }
+  }).catch(function(e){
+    setStatus("Save error: " + e, "err");
+  });
+}
+
+function formatRaw(){
+  try{
+    var parsed = JSON.parse(document.getElementById("raw-editor").value);
+    document.getElementById("raw-editor").value = JSON.stringify(parsed, null, 2);
+    setStatus("Formatted.", "ok");
+    setTimeout(function(){ setStatus("",""); }, 2000);
+  } catch(e){
+    setStatus("Invalid JSON: " + e, "err");
+  }
+}
+
+function addHistoryEntry(){
+  var entry = prompt("New history entry:");
+  if(!entry || !entry.trim()) return;
+  if(!memoryData) return;
+  if(!memoryData.conversation_history) memoryData.conversation_history = [];
+  var today = new Date().toISOString().slice(0,10);
+  memoryData.conversation_history.push(today + ": " + entry.trim());
+  document.getElementById("raw-editor").value = JSON.stringify(memoryData, null, 2);
+  renderOverview(memoryData);
+  setStatus("Entry added. Save to persist.", "ok");
+}
+
+function confirmReset(){
+  if(!confirm("Reset all memory? This cannot be undone.")) return;
+  var blank = {user:"Kevin Augusta",email:"1301256848@s.tusd1.org",last_updated:new Date().toISOString().slice(0,10),conversation_history:[],notes:"",preferences:{ui_library:"Rayfield UI",no_emojis:true,executors:["Xeno","Synapse X","KRNL","Script-Ware"]},projects:{},goguardian:{blocks:[],works:[]}};
+  document.getElementById("raw-editor").value = JSON.stringify(blank, null, 2);
+  setStatus("Reset staged. Click Save to commit.", "ok");
+}
+
+loadMemory();
+</script>
+</body>
+</html>
