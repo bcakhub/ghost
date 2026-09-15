@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost OS</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;color:#00ffff;font-family:'Courier New',Courier,monospace;overflow:hidden;width:100vw;height:100vh;user-select:none;}
+#boot{position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:40px;}
+.boot-line{font-size:13px;color:#00ffff;margin:2px 0;opacity:0;animation:fadein 0.1s forwards;}
+@keyframes fadein{to{opacity:1;}}
+@keyframes logopulse{0%{opacity:0;text-shadow:0 0 5px #00ffff;}50%{opacity:1;text-shadow:0 0 40px #00ffff,0 0 80px #00ffff;}100%{opacity:1;text-shadow:0 0 20px #00ffff;}}
+#password-screen{position:fixed;inset:0;background:#000;z-index:9998;display:none;flex-direction:column;justify-content:center;align-items:center;gap:16px;}
+#password-screen .prompt{font-size:14px;color:#00ffff;letter-spacing:2px;}
+#password-input{background:#000;border:1px solid #00ffff;color:#00ffff;font-family:'Courier New',monospace;font-size:16px;padding:10px 16px;width:280px;outline:none;text-align:center;letter-spacing:4px;}
+#password-input::placeholder{color:#006666;letter-spacing:1px;}
+#pw-error{color:#ff0000;font-size:12px;display:none;}
+#pw-lockout{color:#ff4400;font-size:12px;display:none;}
+#glitch-screen{position:fixed;inset:0;background:#000;z-index:10000;display:none;flex-direction:column;justify-content:center;align-items:center;}
+.glitch-text{font-size:20px;color:#ff0000;animation:glitch 0.1s infinite;}
+@keyframes glitch{0%{transform:translate(0);color:#ff0000;}25%{transform:translate(-4px,2px);color:#00ffff;}50%{transform:translate(4px,-2px);color:#ff00ff;}75%{transform:translate(-2px,4px);color:#ffff00;}100%{transform:translate(0);color:#ff0000;}}
+#glitch-screen::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,0.15) 0px,rgba(0,0,0,0.15) 1px,transparent 1px,transparent 2px);pointer-events:none;}
+#ghost-id-screen{position:fixed;inset:0;background:#000;z-index:9997;display:none;flex-direction:column;justify-content:center;align-items:center;gap:16px;}
+#ghost-id-screen .prompt{font-size:14px;color:#00ffff;letter-spacing:2px;}
+#ghost-id-input{background:#000;border:1px solid #00ffff;color:#00ffff;font-family:'Courier New',monospace;font-size:16px;padding:10px 16px;width:280px;outline:none;text-align:center;}
+#ghost-id-input::placeholder{color:#006666;}
+#desktop{position:fixed;inset:0;background:#000;z-index:1;display:none;}
+#wallpaper-layer{position:absolute;inset:0;z-index:0;pointer-events:none;}
+.wp-darkgrid{background-image:linear-gradient(rgba(0,255,255,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,255,0.05) 1px,transparent 1px);background-size:40px 40px;}
+.wp-pulsewave{background:radial-gradient(ellipse at 50% 50%,rgba(0,255,255,0.08) 0%,transparent 70%),linear-gradient(180deg,#000 0%,#001a1a 50%,#000 100%);}
+.wp-staticnoise{background-color:#000;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");}
+#desktop-icons{position:absolute;top:20px;left:20px;display:grid;grid-template-columns:repeat(2,90px);gap:20px;z-index:2;}
+.desktop-icon{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px;border:1px solid transparent;transition:border 0.2s;}
+.desktop-icon:hover{border:1px solid #00ffff;background:rgba(0,255,255,0.05);}
+.icon-img{width:40px;height:40px;border:1px solid #00ffff;display:flex;align-items:center;justify-content:center;font-size:11px;color:#00ffff;text-align:center;line-height:1.2;}
+.icon-label{font-size:10px;color:#00ffff;text-align:center;text-shadow:0 0 6px #00ffff;}
+#taskbar{position:absolute;bottom:0;left:0;right:0;height:40px;background:#000;border-top:1px solid #00ffff;display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:1000;}
+#taskbar-left{font-size:12px;color:#00ffff;letter-spacing:3px;text-shadow:0 0 8px #00ffff;}
+#taskbar-center{display:flex;gap:8px;align-items:center;flex:1;justify-content:center;}
+.taskbar-btn{font-size:10px;color:#006666;border:1px solid #003333;padding:3px 8px;cursor:pointer;transition:all 0.2s;background:#000;}
+.taskbar-btn:hover,.taskbar-btn.active{color:#00ffff;border-color:#00ffff;background:rgba(0,255,255,0.08);}
+#taskbar-right{font-size:12px;color:#00ffff;letter-spacing:2px;text-shadow:0 0 6px #00ffff;min-width:80px;text-align:right;}
+#context-menu{position:fixed;background:#000;border:1px solid #00ffff;z-index:9000;display:none;min-width:160px;}
+.ctx-item{padding:10px 16px;font-size:12px;color:#00ffff;cursor:pointer;border-bottom:1px solid #003333;}
+.ctx-item:last-child{border-bottom:none;}
+.ctx-item:hover{background:rgba(0,255,255,0.1);}
+.window{position:absolute;background:#000;border:1px solid #00ffff;min-width:320px;min-height:200px;z-index:100;display:flex;flex-direction:column;box-shadow:0 0 20px rgba(0,255,255,0.15);}
+.window-titlebar{background:#000;border-bottom:1px solid #00ffff;padding:6px 10px;display:flex;align-items:center;justify-content:space-between;cursor:move;flex-shrink:0;}
+.window-title{font-size:11px;color:#00ffff;letter-spacing:2px;}
+.window-controls{display:flex;gap:6px;}
+.wc-btn{width:16px;height:16px;border:1px solid #00ffff;background:#000;color:#00ffff;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s;font-family:'Courier New',monospace;}
+.wc-btn:hover{background:#00ffff;color:#000;}
+.window-body{flex:1;overflow:auto;padding:12px;font-size:12px;color:#00ffff;position:relative;}
+.window-resize{position:absolute;bottom:0;right:0;width:14px;height:14px;cursor:se-resize;border-top:1px solid #00ffff;border-left:1px solid #00ffff;background:#000;}
+.wp-option{padding:10px;border:1px solid #003333;margin-bottom:8px;cursor:pointer;font-size:11px;transition:border 0.2s;}
+.wp-option:hover,.wp-option.selected{border-color:#00ffff;color:#00ffff;}
+.cursor-blink{display:inline-block;width:8px;height:14px;background:#00ffff;animation:blink 1s step-end infinite;vertical-align:middle;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+</style>
+</head>
+<body>
+<div id="boot"></div>
+<div id="glitch-screen">
+  <div class="glitch-text">ACCESS DENIED</div>
+  <div class="glitch-text" style="font-size:13px;margin-top:12px;">SECURITY WIPE INITIATED</div>
+  <div class="glitch-text" style="font-size:11px;margin-top:8px;">RESETTING IN <span id="glitch-count">3</span>...</div>
+</div>
+<div id="password-screen">
+  <div class="prompt">GHOST OS v1.0</div>
+  <div class="prompt" style="font-size:11px;color:#006666;">ENTER PASSWORD TO CONTINUE</div>
+  <input type="password" id="password-input" placeholder="password" autocomplete="off" />
+  <div id="pw-error">INCORRECT PASSWORD</div>
+  <div id="pw-lockout">TOO MANY ATTEMPTS - WAIT <span id="lockout-count">5</span>s</div>
+</div>
+<div id="ghost-id-screen">
+  <div class="prompt">GHOST OS v1.0</div>
+  <div class="prompt" style="font-size:11px;color:#006666;">ENTER YOUR GHOST ID</div>
+  <input type="text" id="ghost-id-input" placeholder="enter codename" maxlength="20" autocomplete="off" />
+  <div style="font-size:11px;color:#006666;">press enter to confirm</div>
+</div>
+<div id="desktop">
+  <div id="wallpaper-layer" class="wp-darkgrid"></div>
+  <div id="desktop-icons"></div>
+  <div id="taskbar">
+    <div id="taskbar-left">GHOST OS</div>
+    <div id="taskbar-center"></div>
+    <div id="taskbar-right"></div>
+  </div>
+  <div id="context-menu">
+    <div class="ctx-item" onclick="openWallpaperPicker()">Change Wallpaper</div>
+    <div class="ctx-item" onclick="openGhostInfo()">Ghost Info</div>
+    <div class="ctx-item" onclick="openAppChooser()">Open App</div>
+  </div>
+</div>
+<script>
+const PASSWORD='iloveubatcat';
+const APPS=[
+  {id:'ghost-ai',label:'Ghost AI',short:'AI'},
+  {id:'ghost-terminal',label:'Ghost Terminal',short:'TERM'},
+  {id:'bcak-hub',label:'BCAK Hub',short:'HUB'},
+  {id:'ghost-network',label:'Ghost Network',short:'NET'},
+  {id:'ghost-vault',label:'Ghost Vault',short:'VAULT'},
+  {id:'ghost-code',label:'Ghost Code',short:'CODE'},
+  {id:'ghost-crypt',label:'Ghost Crypt',short:'CRYPT'},
+  {id:'ghost-siege',label:'Ghost Siege',short:'SIEGE'},
+];
+let wrongAttempts=0,locked=false,wins={},zTop=200,currentWallpaper='wp-darkgrid';
+const bootLines=['GHOST OS v1.0','Initializing kernel...','Loading system modules...','Mounting encrypted filesystem...','Starting network interface...','Loading Ghost environment...','Verifying system integrity...','All systems operational.','','GHOST OS READY'];
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+async function runBoot(){
+  const el=document.getElementById('boot');
+  for(let i=0;i<bootLines.length;i++){
+    await sleep(i===bootLines.length-1?600:220);
+    const d=document.createElement('div');
+    d.className='boot-line';
+    d.textContent=bootLines[i]||' ';
+    if(i===bootLines.length-1){d.style.color='#00ffff';d.style.letterSpacing='4px';}
+    el.appendChild(d);
+  }
+  await sleep(400);
+  const logo=document.createElement('div');
+  logo.textContent='G H O S T';
+  logo.style.cssText='font-size:32px;color:#00ffff;letter-spacing:8px;text-align:center;margin:20px 0;animation:logopulse 1.2s forwards;';
+  el.appendChild(logo);
+  await sleep(1400);
+  el.style.transition='opacity 0.6s';el.style.opacity='0';
+  await sleep(650);
+  el.style.display='none';
+  showPasswordScreen();
+}
+function showPasswordScreen(){
+  document.getElementById('password-screen').style.display='flex';
+  setTimeout(()=>document.getElementById('password-input').focus(),50);
+}
+document.getElementById('password-input').addEventListener('keydown',function(e){
+  if(e.key!=='Enter')return;
+  if(locked)return;
+  const val=this.value;this.value='';
+  if(val===PASSWORD){
+    wrongAttempts=0;
+    document.getElementById('password-screen').style.display='none';
+    if(!localStorage.getItem('ghost_id')){showGhostIdScreen();}else{launchDesktop();}
+  } else {
+    wrongAttempts++;
+    if(wrongAttempts>=3){triggerGlitchWipe();return;}
+    document.getElementById('pw-error').style.display='block';
+    locked=true;
+    const lc=document.getElementById('pw-lockout');
+    const ls=document.getElementById('lockout-count');
+    document.getElementById('pw-error').style.display='none';
+    lc.style.display='block';
+    let t=5;ls.textContent=t;
+    const iv=setInterval(()=>{t--;ls.textContent=t;if(t<=0){clearInterval(iv);lc.style.display='none';locked=false;}},1000);
+  }
+});
+function triggerGlitchWipe(){
+  document.getElementById('password-screen').style.display='none';
+  const gs=document.getElementById('glitch-screen');
+  gs.style.display='flex';
+  let c=3;document.getElementById('glitch-count').textContent=c;
+  const iv=setInterval(()=>{c--;document.getElementById('glitch-count').textContent=c;if(c<=0){clearInterval(iv);gs.style.display='none';wrongAttempts=0;locked=false;showPasswordScreen();}},1000);
+}
+function showGhostIdScreen(){
+  document.getElementById('ghost-id-screen').style.display='flex';
+  setTimeout(()=>document.getElementById('ghost-id-input').focus(),50);
+}
+document.getElementById('ghost-id-input').addEventListener('keydown',function(e){
+  if(e.key!=='Enter')return;
+  const val=this.value.trim().toUpperCase();
+  if(!val)return;
+  localStorage.setItem('ghost_id',val);
+  document.getElementById('ghost-id-screen').style.display='none';
+  launchDesktop();
+});
+function launchDesktop(){
+  document.getElementById('desktop').style.display='block';
+  buildIcons();startClock();
+  const ghostId=localStorage.getItem('ghost_id')||'GHOST';
+  document.getElementById('taskbar-left').textContent='GHOST OS  //  '+ghostId;
+  setWallpaper(localStorage.getItem('ghost_wallpaper')||'wp-darkgrid');
+}
+function buildIcons(){
+  const c=document.getElementById('desktop-icons');
+  APPS.forEach(app=>{
+    const icon=document.createElement('div');
+    icon.className='desktop-icon';
+    icon.innerHTML='<div class="icon-img">'+app.short+'</div><div class="icon-label">'+app.label+'</div>';
+    icon.addEventListener('dblclick',()=>openApp(app.id));
+    c.appendChild(icon);
+  });
+}
+function startClock(){
+  function tick(){
+    const n=new Date();
+    document.getElementById('taskbar-right').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0');
+  }
+  tick();setInterval(tick,1000);
+}
+document.getElementById('desktop').addEventListener('contextmenu',function(e){
+  if(e.target.closest('.window')||e.target.closest('#taskbar')||e.target.closest('.desktop-icon'))return;
+  e.preventDefault();
+  const cm=document.getElementById('context-menu');
+  cm.style.display='block';
+  cm.style.left=Math.min(e.clientX,window.innerWidth-170)+'px';
+  cm.style.top=Math.min(e.clientY,window.innerHeight-120)+'px';
+});
+document.addEventListener('click',()=>{document.getElementById('context-menu').style.display='none';});
+function setWallpaper(wp){
+  const wl=document.getElementById('wallpaper-layer');
+  wl.className=wp;currentWallpaper=wp;
+  localStorage.setItem('ghost_wallpaper',wp);
+}
+function openApp(id){
+  if(id==='ghost-info'){openGhostInfo();return;}
+  if(id==='wallpaper-picker'){openWallpaperPicker();return;}
+  if(wins[id]){focusWin(id);if(wins[id].minimized)restoreWin(id);return;}
+  const app=APPS.find(a=>a.id===id);
+  const label=app?app.label:id;
+  createWin(id,label.toUpperCase(),'<div style="padding:20px;font-size:12px;color:#006666;text-align:center;margin-top:40px;">'+label+'<br><br>Module not yet installed.<br>Coming in next session.</div>',600,400);
+}
+function openGhostInfo(){
+  if(wins['ghost-info']){focusWin('ghost-info');return;}
+  const ghostId=localStorage.getItem('ghost_id')||'GHOST';
+  createWin('ghost-info','GHOST INFO','<div style="padding:16px;font-size:11px;line-height:2.2;"><div>GHOST OS v1.0</div><div>OPERATOR: '+ghostId+'</div><div>STATUS: ONLINE</div><div>AESTHETIC: CYAN ON BLACK</div><div>APPS INSTALLED: 0 / 8</div><div>WALLPAPER: '+currentWallpaper.replace('wp-','').toUpperCase()+'</div><div style="margin-top:12px;color:#006666;">All systems nominal. <span class="cursor-blink"></span></div></div>',320,280);
+}
+function openWallpaperPicker(){
+  if(wins['wallpaper-picker']){focusWin('wallpaper-picker');return;}
+  createWin('wallpaper-picker','WALLPAPER','<div style="padding:16px;"><div style="font-size:12px;letter-spacing:2px;margin-bottom:16px;">SELECT WALLPAPER</div><div class="wp-option" onclick="setWallpaper('wp-darkgrid');document.querySelectorAll('.wp-option').forEach(x=>x.classList.remove('selected'));this.classList.add('selected')">DARK GRID</div><div class="wp-option" onclick="setWallpaper('wp-pulsewave');document.querySelectorAll('.wp-option').forEach(x=>x.classList.remove('selected'));this.classList.add('selected')">PULSE WAVE</div><div class="wp-option" onclick="setWallpaper('wp-staticnoise');document.querySelectorAll('.wp-option').forEach(x=>x.classList.remove('selected'));this.classList.add('selected')">STATIC NOISE</div></div>',300,260);
+}
+function openAppChooser(){
+  if(wins['app-chooser']){focusWin('app-chooser');return;}
+  let list='';
+  APPS.forEach(a=>{list+='<div class="ctx-item" style="font-size:11px;" onclick="openApp(''+a.id+'');closeWin('app-chooser')">'+a.label+'</div>';});
+  createWin('app-chooser','OPEN APP','<div>'+list+'</div>',220,320);
+}
+function createWin(id,title,bodyHTML,w,h){
+  if(wins[id])return;
+  zTop+=2;
+  const win=document.createElement('div');
+  win.className='window';win.id='win-'+id;
+  win.style.cssText='width:'+w+'px;height:'+h+'px;left:'+Math.max(40,Math.floor(Math.random()*(window.innerWidth-w-60)))+'px;top:'+Math.max(20,Math.floor(Math.random()*(window.innerHeight-h-80)))+'px;z-index:'+zTop+';';
+  win.innerHTML='<div class="window-titlebar" onmousedown="startDrag(event,''+id+'')"><div class="window-title">'+title+'</div><div class="window-controls"><div class="wc-btn" onclick="minimizeWin(''+id+'')">_</div><div class="wc-btn" onclick="maximizeWin(''+id+'')">+</div><div class="wc-btn" onclick="closeWin(''+id+'')">X</div></div></div><div class="window-body">'+bodyHTML+'</div><div class="window-resize" onmousedown="startResize(event,''+id+'')"></div>';
+  win.addEventListener('mousedown',()=>focusWin(id));
+  document.getElementById('desktop').appendChild(win);
+  wins[id]={el:win,minimized:false,maxed:false,prev:{}};
+  addTbBtn(id,title);
+}
+function closeWin(id){if(!wins[id])return;wins[id].el.remove();delete wins[id];removeTbBtn(id);}
+function minimizeWin(id){if(!wins[id])return;wins[id].minimized=true;wins[id].el.style.display='none';const b=document.getElementById('tbtn-'+id);if(b)b.classList.remove('active');}
+function restoreWin(id){if(!wins[id])return;wins[id].minimized=false;wins[id].el.style.display='flex';focusWin(id);const b=document.getElementById('tbtn-'+id);if(b)b.classList.add('active');}
+function maximizeWin(id){
+  const w=wins[id];if(!w)return;
+  if(!w.maxed){w.prev={left:w.el.style.left,top:w.el.style.top,width:w.el.style.width,height:w.el.style.height};w.el.style.left='0';w.el.style.top='0';w.el.style.width=window.innerWidth+'px';w.el.style.height=(window.innerHeight-40)+'px';w.maxed=true;}
+  else{w.el.style.left=w.prev.left;w.el.style.top=w.prev.top;w.el.style.width=w.prev.width;w.el.style.height=w.prev.height;w.maxed=false;}
+}
+function focusWin(id){zTop+=2;if(wins[id])wins[id].el.style.zIndex=zTop;}
+function addTbBtn(id,title){
+  const c=document.getElementById('taskbar-center');
+  const b=document.createElement('div');
+  b.className='taskbar-btn active';b.id='tbtn-'+id;
+  b.textContent=title.length>10?title.substring(0,8)+'..':title;
+  b.onclick=()=>{if(!wins[id])return;if(wins[id].minimized)restoreWin(id);else minimizeWin(id);};
+  c.appendChild(b);
+}
+function removeTbBtn(id){const b=document.getElementById('tbtn-'+id);if(b)b.remove();}
+let dragging=null,dragOffX=0,dragOffY=0;
+function startDrag(e,id){const w=wins[id];if(!w||w.maxed)return;dragging=id;dragOffX=e.clientX-w.el.offsetLeft;dragOffY=e.clientY-w.el.offsetTop;focusWin(id);e.preventDefault();}
+let resizing=null,rsX=0,rsY=0,rsW=0,rsH=0;
+function startResize(e,id){resizing=id;rsX=e.clientX;rsY=e.clientY;const w=wins[id];rsW=w.el.offsetWidth;rsH=w.el.offsetHeight;e.preventDefault();e.stopPropagation();}
+document.addEventListener('mousemove',e=>{
+  if(dragging){const w=wins[dragging];if(w){w.el.style.left=Math.max(0,Math.min(e.clientX-dragOffX,window.innerWidth-80))+'px';w.el.style.top=Math.max(0,Math.min(e.clientY-dragOffY,window.innerHeight-80))+'px';}}
+  if(resizing){const w=wins[resizing];if(w){w.el.style.width=Math.max(280,rsW+(e.clientX-rsX))+'px';w.el.style.height=Math.max(160,rsH+(e.clientY-rsY))+'px';}}
+});
+document.addEventListener('mouseup',()=>{dragging=null;resizing=null;});
+runBoot();
+</script>
+</body>
+</html>
