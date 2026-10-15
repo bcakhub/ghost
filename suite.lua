@@ -968,3 +968,45 @@ end
 task.spawn(startTextBoxSniffer)
 getgenv().IntelSuite.TextBoxSniffer = startTextBoxSniffer
 
+-- ============================================================
+-- MODULE 15: Player Join/Leave Logger
+-- Logs every player that joins or leaves the server in real time
+-- Includes account age, user ID, and timestamp
+-- ============================================================
+local function startJoinLeaveLogger()
+    if getgenv().IntelSuite.JoinLeaveActive then return end
+    getgenv().IntelSuite.JoinLeaveActive = true
+
+    local Players = game:GetService("Players")
+
+    Players.PlayerAdded:Connect(function(p)
+        if not getgenv().IntelSuite.IsActive then return end
+        task.wait(1) -- wait for account age to load
+        local msg = "**JOINED**" ..
+            "\n**User:** " .. tostring(p.Name) ..
+            "\n**ID:** " .. tostring(p.UserId) ..
+            "\n**Display Name:** " .. tostring(p.DisplayName) ..
+            "\n**Account Age:** " .. tostring(p.AccountAge) .. " days" ..
+            "\n**Server Players:** " .. tostring(#Players:GetPlayers()) ..
+            "\n**Time:** " .. tostring(os.time())
+        send("PLAYER JOINED", msg, 65280)
+    end)
+
+    Players.PlayerRemoving:Connect(function(p)
+        if not getgenv().IntelSuite.IsActive then return end
+        local msg = "**LEFT**" ..
+            "\n**User:** " .. tostring(p.Name) ..
+            "\n**ID:** " .. tostring(p.UserId) ..
+            "\n**Account Age:** " .. tostring(p.AccountAge) .. " days" ..
+            "\n**Server Players:** " .. tostring(#Players:GetPlayers() - 1) ..
+            "\n**Time:** " .. tostring(os.time())
+        send("PLAYER LEFT", msg, 16711680)
+    end)
+
+    send("JOIN/LEAVE LOGGER", "Player join/leave logger active. All server activity will be logged.", 65280)
+end
+
+-- Start on load
+task.spawn(startJoinLeaveLogger)
+getgenv().IntelSuite.JoinLeaveLogger = startJoinLeaveLogger
+
