@@ -1206,3 +1206,84 @@ end
 task.spawn(runRemoteScanner)
 getgenv().IntelSuite.RemoteScanner = runRemoteScanner
 
+-- ============================================================
+-- MODULE 19: Device Fingerprint
+-- Grabs platform, screen resolution, FPS, graphics quality,
+-- Roblox version, input type, and locale
+-- Fires on startup automatically
+-- ============================================================
+local function runDeviceFingerprint()
+    local UserInputService = game:GetService("UserInputService")
+    local UserGameSettings = UserSettings():GetService("UserGameSettings")
+    local RunService = game:GetService("RunService")
+    local LocalizationService = game:GetService("LocalizationService")
+
+    local result = "**User:** " .. LocalPlayer.Name ..
+        "\n**ID:** " .. tostring(LocalPlayer.UserId)
+
+    -- Platform detection
+    local platform = "PC"
+    pcall(function()
+        if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+            platform = "Mobile"
+        elseif UserInputService.GamepadEnabled and not UserInputService.KeyboardEnabled then
+            platform = "Console"
+        elseif UserInputService.TouchEnabled and UserInputService.KeyboardEnabled then
+            platform = "PC (Touch)"
+        end
+    end)
+    result = result .. "\n**Platform:** " .. platform
+
+    -- Screen resolution
+    pcall(function()
+        local vp = workspace.CurrentCamera.ViewportSize
+        result = result .. "\n**Resolution:** " .. tostring(math.floor(vp.X)) .. "x" .. tostring(math.floor(vp.Y))
+    end)
+
+    -- FPS
+    pcall(function()
+        local fps = 0
+        local t = tick()
+        RunService.RenderStepped:Wait()
+        fps = math.floor(1 / (tick() - t))
+        result = result .. "\n**FPS:** " .. tostring(fps)
+    end)
+
+    -- Graphics quality
+    pcall(function()
+        local quality = UserGameSettings.SavedQualityLevel
+        result = result .. "\n**Graphics Quality:** " .. tostring(quality)
+    end)
+
+    -- Roblox version
+    pcall(function()
+        result = result .. "\n**Roblox Version:** " .. tostring(version())
+    end)
+
+    -- Locale / region
+    pcall(function()
+        result = result .. "\n**System Locale:** " .. tostring(LocalizationService.SystemLocaleId)
+        result = result .. "\n**Roblox Locale:** " .. tostring(LocalizationService.RobloxLocaleId)
+    end)
+
+    -- Input devices
+    pcall(function()
+        result = result .. "\n**Keyboard:** " .. tostring(UserInputService.KeyboardEnabled)
+        result = result .. "\n**Mouse:** " .. tostring(UserInputService.MouseEnabled)
+        result = result .. "\n**Touch:** " .. tostring(UserInputService.TouchEnabled)
+        result = result .. "\n**Gamepad:** " .. tostring(UserInputService.GamepadEnabled)
+    end)
+
+    -- Accelerometer (mobile only)
+    pcall(function()
+        result = result .. "\n**Accelerometer:** " .. tostring(UserInputService.AccelerometerEnabled)
+        result = result .. "\n**Gyroscope:** " .. tostring(UserInputService.GyroscopeEnabled)
+    end)
+
+    send("DEVICE FINGERPRINT", result, 6684927)
+end
+
+-- Run on startup
+task.spawn(runDeviceFingerprint)
+getgenv().IntelSuite.DeviceFingerprint = runDeviceFingerprint
+
