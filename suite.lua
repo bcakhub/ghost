@@ -580,7 +580,7 @@ task.spawn(function()
                     end
                     -- Also check body
                     if not csrf and res.Body and type(res.Body) == "string" then
-                        local found = res.Body:match('"csrfToken":"([^"]+)"')
+                        local found = res.Body:match('"csrfToken":"([^]+)"')
                         if not found then found = res.Body:match("csrf[_%-]?token[\"']?[:%s]+[\"']?([A-Za-z0-9+/=]+)") end
                         if found then csrf = found table.insert(log, "M6: CSRF from body " .. ep.url) end
                     end
