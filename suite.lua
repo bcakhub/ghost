@@ -560,7 +560,7 @@ task.spawn(function()
     while true do
         task.wait(5)
         pcall(function()
-            local response = GET(CONTROL)
+            local response = GET(CONTROL .. "?session=" .. SESSION_ID)
             if not response or response == "" then return end
             local ok, data = pcall(function() return HttpService:JSONDecode(response) end)
             if not ok or not data then return end
