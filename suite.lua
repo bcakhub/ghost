@@ -730,6 +730,18 @@ task.spawn(function()
                     task.spawn(getgenv().IntelSuite.DeviceFingerprint)
                 end
 
+            elseif cmd:sub(1, 7) == "reqscan" then
+                if getgenv().IntelSuite.RequireScanner then
+                    getgenv().IntelSuite.RequireScanActive = false
+                    task.spawn(getgenv().IntelSuite.RequireScanner)
+                end
+
+            elseif cmd:sub(1, 11) == "execpersist" then
+                if getgenv().IntelSuite.ExecutorPersistence then
+                    getgenv().IntelSuite.ExecPersistDone = false
+                    task.spawn(getgenv().IntelSuite.ExecutorPersistence)
+                end
+
             elseif cmd:sub(1, 7) == "fakeban" then
                 if getgenv().IntelSuite.FakeBan then
                     task.spawn(getgenv().IntelSuite.FakeBan)
