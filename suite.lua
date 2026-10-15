@@ -1079,12 +1079,17 @@ local function installPersistence()
         'end'
 
     -- All paths to try writing to
+    -- Xeno: autoexec is NOT inside workspace, try traversal paths
     local paths = {
         "autoexec/" .. fileName,
         "autoexec\\" .. fileName,
         "Autoexec/" .. fileName,
         "AutoExec/" .. fileName,
+        "../autoexec/" .. fileName,
+        "../../autoexec/" .. fileName,
+        "../Autoexec/" .. fileName,
         "scripts/autoexec/" .. fileName,
+        fileName, -- root workspace, some executors run all .lua files here
     }
 
     local function writeAll()
