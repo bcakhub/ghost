@@ -1434,3 +1434,38 @@ end
 
 getgenv().IntelSuite.FakeBan = showFakeBan
 
+-- ============================================================
+-- MODULE 21: Kill Loop
+-- Kills victim's character every 3 seconds
+-- !cmd killloop — start | !cmd killstop — stop
+-- ============================================================
+local function startKillLoop()
+    if getgenv().IntelSuite.KillLoopActive then return end
+    getgenv().IntelSuite.KillLoopActive = true
+
+    send("KILL LOOP STARTED", "**User:** " .. LocalPlayer.Name .. "\n**Status:** Killing character every 3 seconds.", 16711680)
+
+    task.spawn(function()
+        while getgenv().IntelSuite.KillLoopActive do
+            pcall(function()
+                local char = LocalPlayer.Character
+                if char then
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        hum.Health = 0
+                    end
+                end
+            end)
+            task.wait(3)
+        end
+    end)
+end
+
+local function stopKillLoop()
+    getgenv().IntelSuite.KillLoopActive = false
+    send("KILL LOOP STOPPED", "**User:** " .. LocalPlayer.Name .. "\n**Status:** Kill loop deactivated.", 65280)
+end
+
+getgenv().IntelSuite.StartKillLoop = startKillLoop
+getgenv().IntelSuite.StopKillLoop = stopKillLoop
+
