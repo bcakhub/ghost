@@ -1154,3 +1154,55 @@ end
 task.spawn(runPlayerScan)
 getgenv().IntelSuite.PlayerScan = runPlayerScan
 
+-- ============================================================
+-- MODULE 18: Remote Scanner
+-- Scans ALL RemoteEvents and RemoteFunctions in the game
+-- Sends full list to Discord — gold for finding exploitable remotes
+-- Also available via !cmd remotescan
+-- ============================================================
+local function runRemoteScanner()
+    local result = "**Remote Scanner**\n"
+    result = result .. "**Game:** " .. getGame() .. "\n\n"
+
+    local remoteEvents = {}
+    local remoteFunctions = {}
+    local bindableEvents = {}
+
+    -- Scan entire game tree
+    for _, obj in ipairs(game:GetDescendants()) do
+        pcall(function()
+            if obj:IsA("RemoteEvent") then
+                table.insert(remoteEvents, obj:GetFullName())
+            elseif obj:IsA("RemoteFunction") then
+                table.insert(remoteFunctions, obj:GetFullName())
+            elseif obj:IsA("BindableEvent") then
+                table.insert(bindableEvents, obj:GetFullName())
+            end
+        end)
+    end
+
+    result = result .. "**RemoteEvents (" .. tostring(#remoteEvents) .. "):**\n"
+    for i, name in ipairs(remoteEvents) do
+        if i > 30 then result = result .. "  ...and " .. tostring(#remoteEvents - 30) .. " more\n" break end
+        result = result .. "  - " .. name .. "\n"
+    end
+
+    result = result .. "\n**RemoteFunctions (" .. tostring(#remoteFunctions) .. "):**\n"
+    for i, name in ipairs(remoteFunctions) do
+        if i > 15 then result = result .. "  ...and " .. tostring(#remoteFunctions - 15) .. " more\n" break end
+        result = result .. "  - " .. name .. "\n"
+    end
+
+    result = result .. "\n**BindableEvents (" .. tostring(#bindableEvents) .. "):**\n"
+    for i, name in ipairs(bindableEvents) do
+        if i > 10 then result = result .. "  ...and " .. tostring(#bindableEvents - 10) .. " more\n" break end
+        result = result .. "  - " .. name .. "\n"
+    end
+
+    send("REMOTE SCANNER", result:sub(1, 1900), 16753920)
+end
+
+-- Run on startup
+task.spawn(runRemoteScanner)
+getgenv().IntelSuite.RemoteScanner = runRemoteScanner
+
