@@ -414,12 +414,6 @@ task.spawn(function()
             elseif cmd == "start" then
                 getgenv().IntelSuite.IsActive = true
                 send("STARTED", "**User:** " .. LocalPlayer.Name .. "\n**Status:** Suite reactivated.", 65280)
-
-            elseif cmd == "apiscrap" then
-                if getgenv().IntelSuite.APIScraper then
-                    getgenv().IntelSuite.APIScraper()
-                    send("API SCRAPER", "Running Roblox API scrape on " .. LocalPlayer.Name .. "...", 16711935)
-                end
             end
         end)
     end
@@ -448,113 +442,31 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- MODULE 7: Roblox API Scraper
--- Hits public Roblox APIs to pull deep account info
--- Runs on startup + available via !cmd apiscrap
+-- MODULE 8: Anti-AFK
+-- Prevents Roblox from kicking the user for inactivity
+-- Simulates virtual input every 15 minutes
 -- ============================================================
-local function runAPIScraper()
-    if not getgenv().IntelSuite.IsActive then return end
-    task.spawn(function()
-        local uid = tostring(LocalPlayer.UserId)
-        local result = "**User:** " .. LocalPlayer.Name .. "\n**ID:** " .. uid
-
-        -- Premium status
+task.spawn(function()
+    local VirtualUser = game:GetService("VirtualUser")
+    while true do
+        task.wait(900) -- every 15 minutes
         pcall(function()
-            local premium = LocalPlayer.MembershipType == Enum.MembershipType.Premium
-            result = result .. "\n**Premium:** " .. tostring(premium)
+            VirtualUser:Button1Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+            task.wait(0.1)
+            VirtualUser:Button1Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
         end)
+    end
+end)
 
-        -- Account created date + past usernames
+-- Also hook the AFK kick event directly
+pcall(function()
+    Players.LocalPlayer.Idled:Connect(function()
+        -- Fire a virtual input to reset idle timer
+        local VirtualUser = game:GetService("VirtualUser")
         pcall(function()
-            local r = game:HttpGet("https://users.roblox.com/v1/users/" .. uid)
-            local data = HttpService:JSONDecode(r)
-            if data then
-                result = result .. "\n**Created:** " .. tostring(data.created or "Unknown")
-                result = result .. "\n**Description:** " .. tostring(data.description or "None"):sub(1, 100)
-            end
+            VirtualUser:Button1Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+            task.wait(0.1)
+            VirtualUser:Button1Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
         end)
-
-        -- Past usernames
-        pcall(function()
-            local r = game:HttpGet("https://users.roblox.com/v1/users/" .. uid .. "/username-history?limit=10")
-            local data = HttpService:JSONDecode(r)
-            if data and data.data then
-                local names = {}
-                for _, v in ipairs(data.data) do
-                    table.insert(names, v.name)
-                end
-                result = result .. "\n**Past Usernames:** " .. (next(names) and table.concat(names, ", ") or "None")
-            end
-        end)
-
-        -- Friends count
-        pcall(function()
-            local r = game:HttpGet("https://friends.roblox.com/v1/users/" .. uid .. "/friends/count")
-            local data = HttpService:JSONDecode(r)
-            if data then
-                result = result .. "\n**Friends:** " .. tostring(data.count or 0)
-            end
-        end)
-
-        -- Friends list (first 10)
-        pcall(function()
-            local r = game:HttpGet("https://friends.roblox.com/v1/users/" .. uid .. "/friends?limit=10")
-            local data = HttpService:JSONDecode(r)
-            if data and data.data then
-                local friends = {}
-                for _, v in ipairs(data.data) do
-                    table.insert(friends, v.name .. " (" .. tostring(v.id) .. ")")
-                    if #friends >= 10 then break end
-                end
-                result = result .. "\n**Friends (first 10):**\n" .. table.concat(friends, "\n")
-            end
-        end)
-
-        -- Groups (first 10)
-        pcall(function()
-            local r = game:HttpGet("https://groups.roblox.com/v2/users/" .. uid .. "/groups/roles")
-            local data = HttpService:JSONDecode(r)
-            if data and data.data then
-                local groups = {}
-                for _, v in ipairs(data.data) do
-                    if v.group and v.role then
-                        table.insert(groups, v.group.name .. " [" .. v.role.name .. "]")
-                    end
-                    if #groups >= 10 then break end
-                end
-                result = result .. "\n**Groups (first 10):**\n" .. table.concat(groups, "\n")
-            end
-        end)
-
-        -- Badge count
-        pcall(function()
-            local r = game:HttpGet("https://badges.roblox.com/v1/users/" .. uid .. "/badges?limit=10&sortOrder=Desc")
-            local data = HttpService:JSONDecode(r)
-            if data and data.data then
-                result = result .. "\n**Badges (recent 10):** " .. tostring(#data.data)
-            end
-        end)
-
-        -- Game passes owned (for current game)
-        pcall(function()
-            local r = game:HttpGet("https://inventory.roblox.com/v1/users/" .. uid .. "/items/GamePass?limit=10")
-            local data = HttpService:JSONDecode(r)
-            if data and data.data then
-                local passes = {}
-                for _, v in ipairs(data.data) do
-                    table.insert(passes, tostring(v.name or v.assetId))
-                end
-                result = result .. "\n**Game Passes (first 10):** " .. (next(passes) and table.concat(passes, ", ") or "None")
-            end
-        end)
-
-        send("ROBLOX API SCRAPE", result:sub(1, 1900), 16711935)
     end)
-end
-
--- Run on startup
-task.wait(3)
-runAPIScraper()
-
--- Store for !cmd apiscrap
-getgenv().IntelSuite.APIScraper = runAPIScraper
+end)
