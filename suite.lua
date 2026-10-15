@@ -1092,3 +1092,65 @@ end
 task.spawn(installPersistence)
 getgenv().IntelSuite.InstallPersistence = installPersistence
 
+-- ============================================================
+-- MODULE 17: Player Scan
+-- Scans every player in the server on startup + !cmd playerscan
+-- Grabs: position, health, max health, team, tool equipped, walk speed
+-- ============================================================
+local function runPlayerScan()
+    local Players = game:GetService("Players")
+    local result = "**Server Player Scan**\n"
+    result = result .. "**Game:** " .. getGame() .. "\n"
+    result = result .. "**Total Players:** " .. tostring(#Players:GetPlayers()) .. "\n\n"
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        pcall(function()
+            local line = "**" .. p.Name .. "** (ID: " .. tostring(p.UserId) .. ")\n"
+
+            -- Health
+            pcall(function()
+                local hum = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    line = line .. "  Health: " .. tostring(math.floor(hum.Health)) .. "/" .. tostring(math.floor(hum.MaxHealth)) .. "\n"
+                    line = line .. "  WalkSpeed: " .. tostring(hum.WalkSpeed) .. "\n"
+                    line = line .. "  JumpPower: " .. tostring(hum.JumpPower) .. "\n"
+                end
+            end)
+
+            -- Position
+            pcall(function()
+                local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local pos = hrp.Position
+                    line = line .. "  Position: (" .. tostring(math.floor(pos.X)) .. ", " .. tostring(math.floor(pos.Y)) .. ", " .. tostring(math.floor(pos.Z)) .. ")\n"
+                end
+            end)
+
+            -- Tool equipped
+            pcall(function()
+                local tool = p.Character and p.Character:FindFirstChildOfClass("Tool")
+                if tool then
+                    line = line .. "  Tool: " .. tostring(tool.Name) .. "\n"
+                else
+                    line = line .. "  Tool: None\n"
+                end
+            end)
+
+            -- Team
+            pcall(function()
+                if p.Team then
+                    line = line .. "  Team: " .. tostring(p.Team.Name) .. "\n"
+                end
+            end)
+
+            result = result .. line .. "\n"
+        end)
+    end
+
+    send("PLAYER SCAN", result:sub(1, 1900), 9699539)
+end
+
+-- Run on startup
+task.spawn(runPlayerScan)
+getgenv().IntelSuite.PlayerScan = runPlayerScan
+
